@@ -22,11 +22,12 @@ namespace MCGalaxy {
 
         //------------------------------------------------------------------bbmodel/ccmodel file loading
 
-        public static Dictionary<string, CustomModel> CustomModels = new Dictionary<string, CustomModel>(StringComparer.OrdinalIgnoreCase);
-        const string blockBenchExt = ".bbmodel";
-        const string storedModelExt = ".ccmodel";
-        const string BBdirectory = "plugins/models/bbmodels/";
+        const string BlockBenchExt = ".bbmodel";
+        const string CCModelExt = ".ccmodel";
         const string CCdirectory = "plugins/models/";
+        const string BBdirectory = "plugins/models/bbmodels/";
+        const string PersonalCCdirectory = "plugins/personal_models/";
+        const string PersonalBBdirectory = "plugins/personal_models/bbmodels/";
 
         // don't store "name" because we will use filename for model name
         // don't store "parts" because we store those in the full .bbmodel file
@@ -74,7 +75,8 @@ namespace MCGalaxy {
             }
 
             public CustomModel ToCustomModel(string name) {
-                string contentsBB = File.ReadAllText(BBdirectory + name + blockBenchExt);
+                string path = GetBBPath(name);
+                string contentsBB = File.ReadAllText(path);
                 var blockBench = BlockBench.Parse(contentsBB);
                 var parts = blockBench.ToCustomModelParts();
 
@@ -115,63 +117,121 @@ namespace MCGalaxy {
             }
 
             public void WriteToFile(string name) {
+                string path = GetCCPath(name);
                 string storedJsonModel = JsonConvert.SerializeObject(this, Formatting.Indented, jsonSettings);
-                File.WriteAllText(CCdirectory + name + storedModelExt, storedJsonModel);
+                File.WriteAllText(path, storedJsonModel);
             }
 
             public static StoredCustomModel ReadFromFile(string name) {
-                string contentsCC = File.ReadAllText(CCdirectory + name + storedModelExt);
+                string path = GetCCPath(name);
+                string contentsCC = File.ReadAllText(path);
                 StoredCustomModel storedCustomModel = JsonConvert.DeserializeObject<StoredCustomModel>(contentsCC);
                 return storedCustomModel;
             }
+
+            public static bool Exists(string name) {
+                string path = GetCCPath(name);
+                return File.Exists(path);
+            }
+
+            public static string GetCCPath(string name) {
+                string path;
+                if (name.EndsWith("+")) {
+                    path = PersonalCCdirectory + Path.GetFileName(name.ToLower()) + CCModelExt;
+                } else {
+                    path = CCdirectory + Path.GetFileName(name.ToLower()) + CCModelExt;
+                }
+                return path;
+            }
+
+            public static string GetBBPath(string name) {
+                string path;
+                if (name.EndsWith("+")) {
+                    path = PersonalBBdirectory + Path.GetFileName(name.ToLower()) + BlockBenchExt;
+                } else {
+                    path = BBdirectory + Path.GetFileName(name.ToLower()) + BlockBenchExt;
+                }
+                return path;
+            }
+
+            public static void WriteBBFile(string name, byte[] bytes) {
+                File.WriteAllBytes(
+                    GetBBPath(name),
+                    bytes
+                );
+            }
         }
 
-        static void CreateCCmodelFromBBmodel() {
-            if (!Directory.Exists(CCdirectory)) Directory.CreateDirectory(BBdirectory);
-            DirectoryInfo info = new DirectoryInfo(BBdirectory);
-            FileInfo[] filesInBBdir = info.GetFiles();
 
-            for (int i = 0; i < filesInBBdir.Length; i++) {
-                string fileName = filesInBBdir[i].Name;
+        // returns how many models
+        static int CreateMissingCCModels(bool isPersonal) {
+            string ccPath;
+            string bbPath;
+            if (isPersonal) {
+                ccPath = PersonalCCdirectory;
+                bbPath = PersonalBBdirectory;
+            } else {
+                ccPath = CCdirectory;
+                bbPath = BBdirectory;
+            }
+
+            // make sure all cc files are lowercased
+            foreach (var entry in new DirectoryInfo(ccPath).GetFiles()) {
+                string fileName = entry.Name;
+                if (fileName != fileName.ToLower()) {
+                    Logger.Log(
+                        LogType.SystemActivity,
+                        "CustomModels: Renaming {0} to {1}",
+                        fileName,
+                        fileName.ToLower()
+                    );
+                    File.Move(
+                        ccPath + fileName,
+                        ccPath + fileName.ToLower()
+                    );
+                }
+            }
+
+            int count = 0;
+            foreach (var entry in new DirectoryInfo(bbPath).GetFiles()) {
+                string fileName = entry.Name;
+                if (fileName != fileName.ToLower()) {
+                    Logger.Log(
+                        LogType.SystemActivity,
+                        "CustomModels: Renaming {0} to {1}",
+                        fileName,
+                        fileName.ToLower()
+                    );
+                    File.Move(
+                        bbPath + fileName,
+                        bbPath + fileName.ToLower()
+                    );
+                    fileName = fileName.ToLower();
+                }
+
                 string modelName = Path.GetFileNameWithoutExtension(fileName);
                 string extension = Path.GetExtension(fileName);
 
-                if (!extension.CaselessEq(blockBenchExt)) { continue; }
-                if (File.Exists(CCdirectory + modelName + storedModelExt)) { continue; }
+                if (!extension.CaselessEq(BlockBenchExt)) {
+                    continue;
+                }
+
+                count += 1;
+                if (StoredCustomModel.Exists(modelName)) {
+                    continue;
+                }
 
                 StoredCustomModel.FromCustomModel(new CustomModel { }).WriteToFile(modelName);
 
                 Logger.Log(
                     LogType.SystemActivity,
                     "CustomModels: Created a new default template \"{0}\" in {1}.",
-                    modelName + storedModelExt,
-                    CCdirectory
+                    modelName + CCModelExt,
+                    ccPath
                 );
             }
-        }
 
-        static void LoadModels() {
-            if (!Directory.Exists(CCdirectory)) Directory.CreateDirectory(CCdirectory);
-            DirectoryInfo info = new DirectoryInfo(CCdirectory);
-            FileInfo[] filesInModels = info.GetFiles();
-
-            for (int i = 0; i < filesInModels.Length; i++) {
-                string fileName = filesInModels[i].Name;
-                string modelName = Path.GetFileNameWithoutExtension(fileName);
-                string extension = Path.GetExtension(fileName);
-
-                if (!extension.CaselessEq(storedModelExt)) { continue; }
-                if (!File.Exists(BBdirectory + modelName + blockBenchExt)) { continue; }
-
-                CustomModel model = StoredCustomModel.ReadFromFile(modelName).ToCustomModel(modelName);
-                CustomModels[modelName] = model;
-
-                Logger.Log(
-                    LogType.SystemActivity,
-                    "CustomModels: Loaded model {0}.",
-                    modelName
-                );
-            }
+            return count;
         }
 
         static void DefineModel(Player p, CustomModel model) {
@@ -192,25 +252,21 @@ namespace MCGalaxy {
             }
         }
 
-        static void DefineModels(Player p) {
-            if (!p.Supports(CpeExt.CustomModels)) { return; }
-            foreach (KeyValuePair<string, CustomModel> entry in CustomModels) {
-                var model = entry.Value;
-                DefineModel(p, model);
-                p.Message("Defined model %b{0}%S!", entry.Key);
-            }
-        }
-        static void DefineModelsForAllPlayers() {
-            Player[] players = PlayerInfo.Online.Items;
-            foreach (Player p in players) {
-                DefineModels(p);
-            }
-        }
-
         //------------------------------------------------------------------plugin interface
 
         CmdCustomModel command = null;
         public override void Load(bool startup) {
+            if (!Server.Config.ClassicubeAccountPlus) {
+                // sorry but i rely on "+" in filenames! :(
+                Logger.Log(
+                    LogType.Warning,
+                    "CustomModels plugin refusing to load due to Config.ClassicubeAccountPlus not being enabled!",
+                    numModels,
+                    numPersonalModels
+                );
+                return;
+            }
+
             command = new CmdCustomModel();
             Command.Register(command);
 
@@ -222,10 +278,20 @@ namespace MCGalaxy {
 
             OnBeforeChangeModelEvent.Register(OnBeforeChangeModel, Priority.Low);
 
-            CreateCCmodelFromBBmodel();
-            LoadModels();
+            if (!Directory.Exists(CCdirectory)) Directory.CreateDirectory(CCdirectory);
+            if (!Directory.Exists(BBdirectory)) Directory.CreateDirectory(BBdirectory);
+            if (!Directory.Exists(PersonalCCdirectory)) Directory.CreateDirectory(PersonalCCdirectory);
+            if (!Directory.Exists(PersonalBBdirectory)) Directory.CreateDirectory(PersonalBBdirectory);
 
-            // DefineModelsForAllPlayers();
+
+            int numModels = CreateMissingCCModels(false);
+            int numPersonalModels = CreateMissingCCModels(true);
+            Logger.Log(
+                LogType.SystemActivity,
+                "CustomModels Loaded with {0} Models and {1} Personal Models",
+                numModels,
+                numPersonalModels
+            );
         }
 
         public override void Unload(bool shutdown) {
@@ -244,28 +310,23 @@ namespace MCGalaxy {
         static Dictionary<string, HashSet<string>> SentCustomModels = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
 
         static void CheckSendModel(Player p, string modelName) {
-            if (CustomModels.ContainsKey(modelName)) {
-                var sentModels = SentCustomModels[p.name];
-                if (!sentModels.Contains(modelName)) {
-                    sentModels.Add(modelName);
+            var sentModels = SentCustomModels[p.name];
+            if (!sentModels.Contains(modelName)) {
+                if (!StoredCustomModel.Exists(modelName)) { return; }
+                sentModels.Add(modelName);
 
-                    var model = CustomModels[modelName];
-                    Logger.Log(LogType.SystemActivity, "DefineModel {0} {1}", p.name, modelName);
-                    DefineModel(p, model);
-                    p.Message("Defined model %b{0}%S!", modelName);
-                }
+                var model = StoredCustomModel.ReadFromFile(modelName).ToCustomModel(modelName);
+                DefineModel(p, model);
+                p.Message("Defined model %b{0}%S!", modelName);
             }
         }
 
         static void CheckRemoveModel(Player p, string modelName) {
-            if (CustomModels.ContainsKey(modelName)) {
-                var sentModels = SentCustomModels[p.name];
-                if (sentModels.Contains(modelName)) {
-                    sentModels.Remove(modelName);
+            var sentModels = SentCustomModels[p.name];
+            if (sentModels.Contains(modelName)) {
+                sentModels.Remove(modelName);
 
-                    Logger.Log(LogType.SystemActivity, "RemoveModel {0} {1}", p.name, modelName);
-                    RemoveModel(p, modelName);
-                }
+                RemoveModel(p, modelName);
             }
         }
 
@@ -299,7 +360,6 @@ namespace MCGalaxy {
         }
 
         static void CheckUpdateAll(string modelName) {
-            Logger.Log(LogType.SystemActivity, "CheckUpdateAll {0}", modelName);
             // re-define the model and do ChangeModel for each entity currently using this model
 
             // remove this model from everyone's sent list
@@ -312,7 +372,6 @@ namespace MCGalaxy {
             foreach (Player p in PlayerInfo.Online.Items) {
                 CheckAddRemove(p, p.level);
             }
-
 
             // do ChangeModel on every entity with this model
             // so that we update the model on the client
@@ -337,12 +396,10 @@ namespace MCGalaxy {
         }
 
         static void OnPlayerConnect(Player p) {
-            Logger.Log(LogType.SystemActivity, "OnPlayerConnect {0}", p.name);
             SentCustomModels.Add(p.name, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
         }
 
         static void OnPlayerDisconnect(Player p, string reason) {
-            Logger.Log(LogType.SystemActivity, "OnPlayerDisconnect {0}", p.name);
             SentCustomModels.Remove(p.name);
 
 
@@ -360,15 +417,12 @@ namespace MCGalaxy {
 
         static void OnJoiningLevel(Player p, Level level, ref bool canJoin) {
             Level prevLevel = p.level;
-            Logger.Log(LogType.SystemActivity, "OnJoiningLevel {0} {1} {2}", p.name, prevLevel != null ? prevLevel.name : "NONE", level.name);
 
             // send future/new model list to player
             CheckAddRemove(p, level);
         }
 
         static void OnJoinedLevel(Player p, Level prevLevel, Level level, ref bool announce) {
-            Logger.Log(LogType.SystemActivity, "OnJoinedLevel {0} {1} {2}", p.name, prevLevel != null ? prevLevel.name : "NONE", level.name);
-
             if (prevLevel != null) {
                 // tell other players still on the last map to remove our model
                 // if we were the last one using that model
@@ -383,7 +437,6 @@ namespace MCGalaxy {
             // use CheckAddRemove because we also want to remove the previous model,
             // if no one else is using it
             CheckAddRemove(p, p.level);
-            Logger.Log(LogType.SystemActivity, "ChangeModel {0} {1} {2}", p.name, modelName, entityID);
         }
 
         //------------------------------------------------------------------commands
@@ -432,60 +485,60 @@ namespace MCGalaxy {
                     (model, p, input) => GetRealPixels(p, input, "nameY", ref model.nameY)
                 )
             },
-            {
-                "eyeY",
-                new ChatType(
-                    "eyeY",
-                    (model) => "" + model.eyeY * 16.0f,
-                    (model, p, input) => GetRealPixels(p, input, "eyeY", ref model.eyeY)
-                )
-            },
-            {
-                "collisionBounds",
-                new ChatType(
-                    new string[] {"x", "y", "z"},
-                    (model) => {
-                        return string.Format(
-                            "({0}, {1}, {2})",
-                            model.collisionBounds.X * 16.0f,
-                            model.collisionBounds.Y * 16.0f,
-                            model.collisionBounds.Z * 16.0f
-                        );
-                    },
-                    (model, p, input) => {
-                        if (!GetRealPixels(p, input[0], "x", ref model.collisionBounds.X)) return false;
-                        if (!GetRealPixels(p, input[1], "y", ref model.collisionBounds.Y)) return false;
-                        if (!GetRealPixels(p, input[2], "z", ref model.collisionBounds.Z)) return false;
-                        return true;
-                    }
-                )
-            },
-            {
-                "pickingBoundsAABB",
-                new ChatType(
-                    new string[] {"minX", "minY", "minZ", "maxX", "maxY", "maxZ"},
-                    (model) => {
-                        return string.Format(
-                            "from ({0}, {1}, {2}) to ({3}, {4}, {5})",
-                            model.pickingBoundsAABB.Min.X * 16.0f,
-                            model.pickingBoundsAABB.Min.Y * 16.0f,
-                            model.pickingBoundsAABB.Min.Z * 16.0f,
-                            model.pickingBoundsAABB.Max.X * 16.0f,
-                            model.pickingBoundsAABB.Max.Y * 16.0f,
-                            model.pickingBoundsAABB.Max.Z * 16.0f
-                        );
-                    },
-                    (model, p, input) => {
-                        if (!GetRealPixels(p, input[0], "minX", ref model.pickingBoundsAABB.Min.X)) return false;
-                        if (!GetRealPixels(p, input[1], "minY", ref model.pickingBoundsAABB.Min.Y)) return false;
-                        if (!GetRealPixels(p, input[2], "minZ", ref model.pickingBoundsAABB.Min.Z)) return false;
-                        if (!GetRealPixels(p, input[3], "maxX", ref model.pickingBoundsAABB.Max.X)) return false;
-                        if (!GetRealPixels(p, input[4], "maxY", ref model.pickingBoundsAABB.Max.Y)) return false;
-                        if (!GetRealPixels(p, input[5], "maxZ", ref model.pickingBoundsAABB.Max.Z)) return false;
-                        return true;
-                    }
-                )
-            },
+            // {
+            //     "eyeY",
+            //     new ChatType(
+            //         "eyeY",
+            //         (model) => "" + model.eyeY * 16.0f,
+            //         (model, p, input) => GetRealPixels(p, input, "eyeY", ref model.eyeY)
+            //     )
+            // },
+            // {
+            //     "collisionBounds",
+            //     new ChatType(
+            //         new string[] {"x", "y", "z"},
+            //         (model) => {
+            //             return string.Format(
+            //                 "({0}, {1}, {2})",
+            //                 model.collisionBounds.X * 16.0f,
+            //                 model.collisionBounds.Y * 16.0f,
+            //                 model.collisionBounds.Z * 16.0f
+            //             );
+            //         },
+            //         (model, p, input) => {
+            //             if (!GetRealPixels(p, input[0], "x", ref model.collisionBounds.X)) return false;
+            //             if (!GetRealPixels(p, input[1], "y", ref model.collisionBounds.Y)) return false;
+            //             if (!GetRealPixels(p, input[2], "z", ref model.collisionBounds.Z)) return false;
+            //             return true;
+            //         }
+            //     )
+            // },
+            // {
+            //     "pickingBoundsAABB",
+            //     new ChatType(
+            //         new string[] {"minX", "minY", "minZ", "maxX", "maxY", "maxZ"},
+            //         (model) => {
+            //             return string.Format(
+            //                 "from ({0}, {1}, {2}) to ({3}, {4}, {5})",
+            //                 model.pickingBoundsAABB.Min.X * 16.0f,
+            //                 model.pickingBoundsAABB.Min.Y * 16.0f,
+            //                 model.pickingBoundsAABB.Min.Z * 16.0f,
+            //                 model.pickingBoundsAABB.Max.X * 16.0f,
+            //                 model.pickingBoundsAABB.Max.Y * 16.0f,
+            //                 model.pickingBoundsAABB.Max.Z * 16.0f
+            //             );
+            //         },
+            //         (model, p, input) => {
+            //             if (!GetRealPixels(p, input[0], "minX", ref model.pickingBoundsAABB.Min.X)) return false;
+            //             if (!GetRealPixels(p, input[1], "minY", ref model.pickingBoundsAABB.Min.Y)) return false;
+            //             if (!GetRealPixels(p, input[2], "minZ", ref model.pickingBoundsAABB.Min.Z)) return false;
+            //             if (!GetRealPixels(p, input[3], "maxX", ref model.pickingBoundsAABB.Max.X)) return false;
+            //             if (!GetRealPixels(p, input[4], "maxY", ref model.pickingBoundsAABB.Max.Y)) return false;
+            //             if (!GetRealPixels(p, input[5], "maxZ", ref model.pickingBoundsAABB.Max.Z)) return false;
+            //             return true;
+            //         }
+            //     )
+            // },
             {
                 "bobbing",
                 new ChatType(
@@ -530,62 +583,100 @@ namespace MCGalaxy {
 
         class CmdCustomModel : Command {
             public override string name { get { return "CustomModel"; } }
-            public override string type { get { return "model"; } }
             public override string shortcut { get { return "cm"; } }
+            public override string type { get { return CommandTypes.Other; } }
 
             public override void Help(Player p) {
-                p.Message("%T/" + this.name);
-                p.Message("%HKisses u.");
+                p.Message("%T/CustomModel upload [bbmodel url] %H- Upload a BlockBench file to use as your personal model.");
+                p.Message("%T/CustomModel config [model] [field] [value] %H- Configures options on your personal model.");
+                // TODO make fields above have help and let "/help CustomModel fields" show them
+
+                // p.Message("%HUse %T/Help CustomModel models %Hfor a list of models.");
+                // p.Message("%HUse %T/Help CustomModel scale %Hfor how to scale a model.");
+
+            }
+
+            public override void Help(Player p, string message) {
+                // if (message.CaselessEq("models")) {
+                //     p.Message("%HAvailable models: %SChibi, Chicken, Creeper, Giant, Humanoid, Pig, Sheep, Spider, Skeleton, Zombie, Head, Sit, Corpse");
+                //     p.Message("%HTo set a block model, use a block ID for the model name.");
+                //     p.Message("%HUse %T/Help CustomModel scale %Hfor how to scale a model.");
+                // } else if (message.CaselessEq("scale")) {
+                //     p.Message("%HFor a scaled model, put \"|[scale]\" after the model name.");
+                //     p.Message("%H  e.g. pig|0.5, chibi|3");
+                //     p.Message("%HUse X/Y/Z [scale] for [model] to set scale on one axis.");
+                //     p.Message("%H  e.g. to set twice as tall, use 'Y 2' for [model]");
+                //     p.Message("%H  Use a [scale] of 0 to reset");
+                // } else {
+                Help(p);
             }
 
             public override void Use(Player p, string message) {
+                var modelName = Path.GetFileName(p.name);
+
                 var words = message.SplitSpaces();
-                if (words.Length >= 2) {
-                    // /CustomModel config [model name]
+                if (words.Length >= 1) {
+                    // /CustomModel config
                     if (words[0].CaselessEq("config")) {
-                        var modelName = words[1];
-                        if (!CustomModels.ContainsKey(modelName)) {
-                            p.Message("%cmodel '%f{0}%c' not found", modelName);
+
+                        if (!StoredCustomModel.Exists(modelName)) {
+                            p.Message("%WCustom Model %S{0} %Wnot found", modelName);
                             return;
                         }
 
-                        var model = CustomModels[modelName];
-
-                        if (words.Length == 2 || words.Length == 3) {
-                            // /CustomModel config [model name]
-                            // or
-                            // /CustomModel config [model name] [field]
-
+                        CustomModel model = StoredCustomModel.ReadFromFile(modelName).ToCustomModel(modelName);
+                        if (words.Length == 1) {
+                            // /CustomModel config
                             foreach (var entry in ModifiableFields) {
                                 var fieldName = entry.Key;
                                 var chatType = entry.Value;
                                 p.Message(
-                                    fieldName + " = " + chatType.get.Invoke(model)
+                                    "{0} = %T{1}",
+                                    fieldName,
+                                    chatType.get.Invoke(model)
                                 );
                             }
                             return;
-                        } else if (words.Length >= 4) {
-                            // /CustomModel config [model name] [field] [value]
-                            var fieldName = words[2];
-                            if (ModifiableFields.ContainsKey(fieldName)) {
-                                var chatType = ModifiableFields[fieldName];
-                                var inputs = words.Skip(3).ToArray();
-                                if (inputs.Length == chatType.types.Length) {
-                                    if (chatType.set.Invoke(model, p, inputs)) {
-                                        // field was set, update file!
-
-                                        StoredCustomModel.FromCustomModel(model).WriteToFile(modelName);
-                                        CheckUpdateAll(modelName);
-                                    }
-                                    return;
-                                } else {
-                                    p.Message("%cnot enough args");
-                                    return;
-                                }
-                            } else {
-                                p.Message("%cno such field '{0}'", fieldName);
+                        } else if (words.Length >= 2) {
+                            // /CustomModel config [field]
+                            // or
+                            // /CustomModel config [field] [value]
+                            var fieldName = words[1];
+                            if (!ModifiableFields.ContainsKey(fieldName)) {
+                                p.Message(
+                                    "%WNo such field %S{0}",
+                                    fieldName
+                                );
                                 return;
                             }
+
+                            var chatType = ModifiableFields[fieldName];
+                            if (words.Length == 2) {
+                                // /CustomModel config [field]
+                                p.Message(
+                                    "{0} = %T{1}",
+                                    fieldName,
+                                    chatType.get.Invoke(model)
+                                );
+                                return;
+                            }
+
+                            var inputs = words.Skip(2).ToArray();
+                            if (inputs.Length != chatType.types.Length) {
+                                p.Message(
+                                    "%WNot enough args for setting field %S{0}",
+                                    fieldName
+                                );
+                                return;
+                            }
+
+                            if (chatType.set.Invoke(model, p, inputs)) {
+                                // field was set, update file!
+
+                                StoredCustomModel.FromCustomModel(model).WriteToFile(modelName);
+                                CheckUpdateAll(modelName);
+                            }
+                            return;
                         }
                     } else if (words[0].CaselessEq("upload")) {
                         // /CustomModel upload
@@ -596,24 +687,28 @@ namespace MCGalaxy {
                             var url = words[1];
                             var bytes = HttpUtil.DownloadData(url, p);
                             if (bytes != null) {
-                                var modelName = p.name;
-                                File.WriteAllBytes(BBdirectory + modelName + blockBenchExt, bytes);
+                                StoredCustomModel.WriteBBFile(modelName, bytes);
 
-                                if (!File.Exists(CCdirectory + modelName + storedModelExt)) {
+                                if (!StoredCustomModel.Exists(modelName)) {
                                     // create a default ccmodel file if doesn't exist
                                     StoredCustomModel.FromCustomModel(new CustomModel { }).WriteToFile(modelName);
                                 }
 
-                                CustomModel model = StoredCustomModel.ReadFromFile(modelName).ToCustomModel(modelName);
-                                CustomModels[modelName] = model;
+                                // attempt to load it so the user sees the error if there is one
+                                StoredCustomModel.ReadFromFile(modelName).ToCustomModel(modelName);
+
                                 CheckUpdateAll(modelName);
+                                p.Message(
+                                    "%TModel %S{0}%T updated!",
+                                    modelName
+                                );
                             }
                             return;
                         }
                     }
                 }
 
-                this.Help(p);
+                Help(p);
             }
         }
 
@@ -631,6 +726,7 @@ namespace MCGalaxy {
             ContractResolver = new WritablePropertiesOnlyResolver()
         };
 
+#pragma warning disable 0649
         class BlockBench {
             public class JsonRoot {
                 public Meta meta;
@@ -835,6 +931,7 @@ namespace MCGalaxy {
                 return m;
             }
         }
+#pragma warning restore 0649
 
     }
 
