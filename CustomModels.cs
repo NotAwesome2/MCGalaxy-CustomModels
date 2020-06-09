@@ -36,7 +36,8 @@ namespace MCGalaxy {
             public float nameY;
             public float eyeY;
             public Vec3F32 collisionBounds;
-            public AABBF32 pickingBoundsAABB;
+            public Vec3F32 pickingBoundsMin;
+            public Vec3F32 pickingBoundsMax;
             public bool bobbing;
             public bool pushes;
             public bool usesHumanSkin;
@@ -53,17 +54,15 @@ namespace MCGalaxy {
                         Y = model.collisionBounds.Y * 16.0f,
                         Z = model.collisionBounds.Z * 16.0f,
                     },
-                    pickingBoundsAABB = {
-                        Min = new Vec3F32 {
-                            X = model.pickingBoundsAABB.Min.X * 16.0f,
-                            Y = model.pickingBoundsAABB.Min.Y * 16.0f,
-                            Z = model.pickingBoundsAABB.Min.Z * 16.0f,
-                        },
-                        Max = new Vec3F32 {
-                            X = model.pickingBoundsAABB.Max.X * 16.0f,
-                            Y = model.pickingBoundsAABB.Max.Y * 16.0f,
-                            Z = model.pickingBoundsAABB.Max.Z * 16.0f,
-                        },
+                    pickingBoundsMin = new Vec3F32 {
+                        X = model.pickingBoundsMin.X * 16.0f,
+                        Y = model.pickingBoundsMin.Y * 16.0f,
+                        Z = model.pickingBoundsMin.Z * 16.0f,
+                    },
+                    pickingBoundsMax = new Vec3F32 {
+                        X = model.pickingBoundsMax.X * 16.0f,
+                        Y = model.pickingBoundsMax.Y * 16.0f,
+                        Z = model.pickingBoundsMax.Z * 16.0f,
                     },
                     bobbing = model.bobbing,
                     pushes = model.pushes,
@@ -94,17 +93,15 @@ namespace MCGalaxy {
                         Y = this.collisionBounds.Y / 16.0f,
                         Z = this.collisionBounds.Z / 16.0f,
                     },
-                    pickingBoundsAABB = new AABBF32 {
-                        Min = new Vec3F32 {
-                            X = this.pickingBoundsAABB.Min.X / 16.0f,
-                            Y = this.pickingBoundsAABB.Min.Y / 16.0f,
-                            Z = this.pickingBoundsAABB.Min.Z / 16.0f,
-                        },
-                        Max = new Vec3F32 {
-                            X = this.pickingBoundsAABB.Max.X / 16.0f,
-                            Y = this.pickingBoundsAABB.Max.Y / 16.0f,
-                            Z = this.pickingBoundsAABB.Max.Z / 16.0f,
-                        },
+                    pickingBoundsMin = new Vec3F32 {
+                        X = this.pickingBoundsMin.X / 16.0f,
+                        Y = this.pickingBoundsMin.Y / 16.0f,
+                        Z = this.pickingBoundsMin.Z / 16.0f,
+                    },
+                    pickingBoundsMax = new Vec3F32 {
+                        X = this.pickingBoundsMax.X / 16.0f,
+                        Y = this.pickingBoundsMax.Y / 16.0f,
+                        Z = this.pickingBoundsMax.Z / 16.0f,
                     },
                     bobbing = this.bobbing,
                     pushes = this.pushes,
@@ -511,27 +508,27 @@ namespace MCGalaxy {
             //     )
             // },
             // {
-            //     "pickingBoundsAABB",
+            //     "pickingBoundsMinMaxTODO",
             //     new ChatType(
             //         new string[] {"minX", "minY", "minZ", "maxX", "maxY", "maxZ"},
             //         (model) => {
             //             return string.Format(
             //                 "from ({0}, {1}, {2}) to ({3}, {4}, {5})",
-            //                 model.pickingBoundsAABB.Min.X * 16.0f,
-            //                 model.pickingBoundsAABB.Min.Y * 16.0f,
-            //                 model.pickingBoundsAABB.Min.Z * 16.0f,
-            //                 model.pickingBoundsAABB.Max.X * 16.0f,
-            //                 model.pickingBoundsAABB.Max.Y * 16.0f,
-            //                 model.pickingBoundsAABB.Max.Z * 16.0f
+            //                 model.pickingBoundsMin.X * 16.0f,
+            //                 model.pickingBoundsMin.Y * 16.0f,
+            //                 model.pickingBoundsMin.Z * 16.0f,
+            //                 model.pickingBoundsMax.X * 16.0f,
+            //                 model.pickingBoundsMax.Y * 16.0f,
+            //                 model.pickingBoundsMax.Z * 16.0f
             //             );
             //         },
             //         (model, p, input) => {
-            //             if (!GetRealPixels(p, input[0], "minX", ref model.pickingBoundsAABB.Min.X)) return false;
-            //             if (!GetRealPixels(p, input[1], "minY", ref model.pickingBoundsAABB.Min.Y)) return false;
-            //             if (!GetRealPixels(p, input[2], "minZ", ref model.pickingBoundsAABB.Min.Z)) return false;
-            //             if (!GetRealPixels(p, input[3], "maxX", ref model.pickingBoundsAABB.Max.X)) return false;
-            //             if (!GetRealPixels(p, input[4], "maxY", ref model.pickingBoundsAABB.Max.Y)) return false;
-            //             if (!GetRealPixels(p, input[5], "maxZ", ref model.pickingBoundsAABB.Max.Z)) return false;
+            //             if (!GetRealPixels(p, input[0], "minX", ref model.pickingBoundsMin.X)) return false;
+            //             if (!GetRealPixels(p, input[1], "minY", ref model.pickingBoundsMin.Y)) return false;
+            //             if (!GetRealPixels(p, input[2], "minZ", ref model.pickingBoundsMin.Z)) return false;
+            //             if (!GetRealPixels(p, input[3], "maxX", ref model.pickingBoundsMax.X)) return false;
+            //             if (!GetRealPixels(p, input[4], "maxY", ref model.pickingBoundsMax.Y)) return false;
+            //             if (!GetRealPixels(p, input[5], "maxZ", ref model.pickingBoundsMax.Z)) return false;
             //             return true;
             //         }
             //     )
