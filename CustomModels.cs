@@ -123,7 +123,7 @@ namespace MCGalaxy {
             public static StoredCustomModel ReadFromFile(string name) {
                 string path = GetCCPath(name);
                 string contentsCC = File.ReadAllText(path);
-                StoredCustomModel storedCustomModel = JsonConvert.DeserializeObject<StoredCustomModel>(contentsCC);
+                StoredCustomModel storedCustomModel = JsonConvert.DeserializeObject<StoredCustomModel>(contentsCC, jsonSettings);
                 return storedCustomModel;
             }
 
@@ -727,21 +727,24 @@ namespace MCGalaxy {
             }
 
             public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer) {
-                var temp = JObject.Load(reader);
+                var obj = JObject.Load(reader);
                 return new Vec3F32 {
-                    X = ((float?)temp["X"]).GetValueOrDefault(),
-                    Y = ((float?)temp["Y"]).GetValueOrDefault(),
-                    Z = ((float?)temp["Z"]).GetValueOrDefault()
+                    X = (float)obj["X"],
+                    Y = (float)obj["Y"],
+                    Z = (float)obj["Z"]
                 };
             }
 
             public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer) {
                 var vec = (Vec3F32)value;
-                serializer.Serialize(writer, new {
-                    X = vec.X,
-                    Y = vec.Y,
-                    Z = vec.Z
-                });
+                serializer.Serialize(
+                    writer,
+                    new {
+                        X = vec.X,
+                        Y = vec.Y,
+                        Z = vec.Z
+                    }
+                );
             }
         }
 
