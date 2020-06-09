@@ -688,7 +688,15 @@ namespace MCGalaxy {
 
                                 // try parsing now so that we throw and don't save the invalid file
                                 // and notify the user of the error
-                                BlockBench.Parse(json).ToCustomModelParts();
+                                var parts = BlockBench.Parse(json).ToCustomModelParts();
+                                if (parts.Length > Packet.MaxCustomModelParts) {
+                                    p.Message(
+                                        "%WNumber of model parts ({0}) exceeds max of {1}!",
+                                        parts.Length,
+                                        Packet.MaxCustomModelParts
+                                    );
+                                    return;
+                                }
 
                                 StoredCustomModel.WriteBBFile(modelName, json);
 
@@ -699,7 +707,7 @@ namespace MCGalaxy {
 
                                 CheckUpdateAll(modelName);
                                 p.Message(
-                                    "%TModel %S{0}%T updated!",
+                                    "%TCustom Model %S{0}%T updated!",
                                     modelName
                                 );
                             }
