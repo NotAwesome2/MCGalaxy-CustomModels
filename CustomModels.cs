@@ -745,29 +745,29 @@ namespace MCGalaxy {
                         throw new Exception("unimplemented: not using box_uv");
                     }
 
-                    bool notifiedTexture = false;
+                    // bool notifiedTexture = false;
                     foreach (Element e in this.elements) {
                         if (e.visibility.HasValue && e.visibility.Value == false) {
                             continue;
                         }
 
-                        if (!notifiedTexture &&
-                            (!e.faces.north.texture.HasValue ||
-                                !e.faces.east.texture.HasValue ||
-                                !e.faces.south.texture.HasValue ||
-                                !e.faces.west.texture.HasValue ||
-                                !e.faces.up.texture.HasValue ||
-                                !e.faces.down.texture.HasValue
-                            )
-                        ) {
-                            Logger.Log(
-                                LogType.Warning,
-                                "Warning: Blockbench Model '" +
-                                this.name +
-                                "' has one or more faces with no texture!"
-                            );
-                            notifiedTexture = true;
-                        }
+                        // if (!notifiedTexture &&
+                        //     (!e.faces.north.texture.HasValue ||
+                        //         !e.faces.east.texture.HasValue ||
+                        //         !e.faces.south.texture.HasValue ||
+                        //         !e.faces.west.texture.HasValue ||
+                        //         !e.faces.up.texture.HasValue ||
+                        //         !e.faces.down.texture.HasValue
+                        //     )
+                        // ) {
+                        //     Logger.Log(
+                        //         LogType.Warning,
+                        //         "Warning: Blockbench Model '" +
+                        //         this.name +
+                        //         "' has one or more faces with no texture!"
+                        //     );
+                        //     notifiedTexture = true;
+                        // }
 
                         UInt16 texX = 0;
                         UInt16 texY = 0;
