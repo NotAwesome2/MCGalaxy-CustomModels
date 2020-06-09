@@ -12,6 +12,7 @@ using MCGalaxy.Events.PlayerEvents;
 using MCGalaxy.Maths;
 using MCGalaxy.Network;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
 
 namespace MCGalaxy {
@@ -719,18 +720,36 @@ namespace MCGalaxy {
 
         //------------------------------------------------------------------bbmodel json parsing
 
-        class WritablePropertiesOnlyResolver : DefaultContractResolver {
-            protected override IList<JsonProperty> CreateProperties(Type type, MemberSerialization memberSerialization) {
-                IList<JsonProperty> props = base.CreateProperties(type, memberSerialization);
-                // Writable because Vec3F32 has some "getter-only" fields we don't want to serialize
-                return props.Where(p => p.Writable).ToList();
+
+        public class Vec3F32Converter : JsonConverter {
+            public override bool CanConvert(Type objectType) {
+                return objectType == typeof(Vec3F32);
+            }
+
+            public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer) {
+                var temp = JObject.Load(reader);
+                return new Vec3F32 {
+                    X = ((float?)temp["X"]).GetValueOrDefault(),
+                    Y = ((float?)temp["Y"]).GetValueOrDefault(),
+                    Z = ((float?)temp["Z"]).GetValueOrDefault()
+                };
+            }
+
+            public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer) {
+                var vec = (Vec3F32)value;
+                serializer.Serialize(writer, new {
+                    X = vec.X,
+                    Y = vec.Y,
+                    Z = vec.Z
+                });
             }
         }
 
         static JsonSerializerSettings jsonSettings = new JsonSerializerSettings {
-            ContractResolver = new WritablePropertiesOnlyResolver()
+            Converters = new[] { new Vec3F32Converter() }
         };
 
+        // ignore "Field is never assigned to"
 #pragma warning disable 0649
         class BlockBench {
             public class JsonRoot {
