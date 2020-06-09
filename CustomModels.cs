@@ -154,10 +154,10 @@ namespace MCGalaxy {
                 return path;
             }
 
-            public static void WriteBBFile(string name, byte[] bytes) {
-                File.WriteAllBytes(
+            public static void WriteBBFile(string name, string json) {
+                File.WriteAllText(
                     GetBBPath(name),
-                    bytes
+                    json
                 );
             }
         }
@@ -260,9 +260,7 @@ namespace MCGalaxy {
                 // sorry but i rely on "+" in filenames! :(
                 Logger.Log(
                     LogType.Warning,
-                    "CustomModels plugin refusing to load due to Config.ClassicubeAccountPlus not being enabled!",
-                    numModels,
-                    numPersonalModels
+                    "CustomModels plugin refusing to load due to Config.ClassicubeAccountPlus not being enabled!"
                 );
                 return;
             }
@@ -317,7 +315,6 @@ namespace MCGalaxy {
 
                 var model = StoredCustomModel.ReadFromFile(modelName).ToCustomModel(modelName);
                 DefineModel(p, model);
-                p.Message("Defined model %b{0}%S!", modelName);
             }
         }
 
@@ -687,15 +684,18 @@ namespace MCGalaxy {
                             var url = words[1];
                             var bytes = HttpUtil.DownloadData(url, p);
                             if (bytes != null) {
-                                StoredCustomModel.WriteBBFile(modelName, bytes);
+                                string json = System.Text.Encoding.UTF8.GetString(bytes);
+
+                                // try parsing now so that we throw and don't save the invalid file
+                                // and notify the user of the error
+                                BlockBench.Parse(json).ToCustomModelParts();
+
+                                StoredCustomModel.WriteBBFile(modelName, json);
 
                                 if (!StoredCustomModel.Exists(modelName)) {
                                     // create a default ccmodel file if doesn't exist
                                     StoredCustomModel.FromCustomModel(new CustomModel { }).WriteToFile(modelName);
                                 }
-
-                                // attempt to load it so the user sees the error if there is one
-                                StoredCustomModel.ReadFromFile(modelName).ToCustomModel(modelName);
 
                                 CheckUpdateAll(modelName);
                                 p.Message(
