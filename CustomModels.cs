@@ -3,6 +3,8 @@
 //reference System.Collections.dll
 //reference Newtonsoft.Json.dll
 
+// TODO test non-box uv
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -74,7 +76,17 @@ namespace MCGalaxy {
                 return storedCustomModel;
             }
 
+            public CustomModelPart[] ToCustomModelParts(string name) {
+                string path = GetBBPath(name);
+                string contentsBB = File.ReadAllText(path);
+                var blockBench = BlockBench.Parse(contentsBB);
+                var parts = blockBench.ToCustomModelParts();
+                return parts;
+            }
+
             public CustomModel ToCustomModel(string name) {
+
+                // TODO don't read parts twice!!
                 string path = GetBBPath(name);
                 string contentsBB = File.ReadAllText(path);
                 var blockBench = BlockBench.Parse(contentsBB);
@@ -83,7 +95,7 @@ namespace MCGalaxy {
                 // convert to block units
                 var model = new CustomModel {
                     name = name,
-                    parts = parts,
+                    partCount = (byte)parts.Length,
                     uScale = blockBench.resolution.width,
                     vScale = blockBench.resolution.height,
 
@@ -232,21 +244,52 @@ namespace MCGalaxy {
             return count;
         }
 
-        static void DefineModel(Player p, CustomModel model) {
-            if (!p.Supports(CpeExt.CustomModels)) { return; }
-            byte[] modelPacket = Packet.DefineModel(model);
-            p.Send(modelPacket);
+        static Dictionary<string, Dictionary<string, byte>> ModelNameToIdForPlayer = new Dictionary<string, Dictionary<string, byte>>(StringComparer.OrdinalIgnoreCase);
+
+        static byte? GetModelId(Player p, string name, bool addNew = false) {
+            var modelNameToId = ModelNameToIdForPlayer[p.name];
+            byte value;
+            if (modelNameToId.TryGetValue(name, out value)) {
+                return value;
+            } else {
+                if (addNew) {
+                    for (int i = 0; i < Packet.MaxCustomModels; i++) {
+                        if (!modelNameToId.ContainsValue((byte)i)) {
+                            modelNameToId.Add(name, (byte)i);
+                            return (byte)i;
+                        }
+                    }
+                    throw new Exception("overflow MaxCustomModels");
+                } else {
+                    return null;
+                }
+            }
         }
 
-        static void RemoveModel(Player p, string name) {
+        static void DefineModel(Player p, CustomModel model, CustomModelPart[] parts) {
             if (!p.Supports(CpeExt.CustomModels)) { return; }
-            byte[] modelPacket = Packet.RemoveModel(name);
+            var modelId = GetModelId(p, model.name, true).Value;
+            byte[] modelPacket = Packet.DefineModel(modelId, model);
             p.Send(modelPacket);
+
+            foreach (var part in parts) {
+                byte[] partPacket = Packet.DefineModelPart(modelId, part);
+                p.Send(partPacket);
+            }
         }
 
-        static void DefineModelForAllPlayers(CustomModel model) {
+        static void UndefineModel(Player p, string name) {
+            if (!p.Supports(CpeExt.CustomModels)) { return; }
+            byte[] modelPacket = Packet.UndefineModel(GetModelId(p, name).Value);
+            p.Send(modelPacket);
+
+            var modelNameToId = ModelNameToIdForPlayer[p.name];
+            modelNameToId.Remove(name);
+        }
+
+        static void DefineModelForAllPlayers(CustomModel model, CustomModelPart[] parts) {
             foreach (Player p in PlayerInfo.Online.Items) {
-                DefineModel(p, model);
+                DefineModel(p, model, parts);
             }
         }
 
@@ -311,8 +354,8 @@ namespace MCGalaxy {
                 if (!StoredCustomModel.Exists(modelName)) { return; }
                 sentModels.Add(modelName);
 
-                var model = StoredCustomModel.ReadFromFile(modelName).ToCustomModel(modelName);
-                DefineModel(p, model);
+                var storedModel = StoredCustomModel.ReadFromFile(modelName);
+                DefineModel(p, storedModel.ToCustomModel(modelName), storedModel.ToCustomModelParts(modelName));
             }
         }
 
@@ -321,7 +364,7 @@ namespace MCGalaxy {
             if (sentModels.Contains(modelName)) {
                 sentModels.Remove(modelName);
 
-                RemoveModel(p, modelName);
+                UndefineModel(p, modelName);
             }
         }
 
@@ -390,10 +433,12 @@ namespace MCGalaxy {
 
         static void OnPlayerConnect(Player p) {
             SentCustomModels.Add(p.name, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+            ModelNameToIdForPlayer.Add(p.name, new Dictionary<string, byte>(StringComparer.OrdinalIgnoreCase));
         }
 
         static void OnPlayerDisconnect(Player p, string reason) {
             SentCustomModels.Remove(p.name);
+            ModelNameToIdForPlayer.Remove(p.name);
 
             Level prevLevel = p.level;
             if (prevLevel != null) {
@@ -763,10 +808,6 @@ namespace MCGalaxy {
                 public CustomModelPart[] ToCustomModelParts() {
                     var list = new List<CustomModelPart>();
 
-                    if (!this.meta.box_uv) {
-                        throw new Exception("unimplemented: not using box_uv");
-                    }
-
                     // bool notifiedTexture = false;
                     foreach (Element e in this.elements) {
                         if (e.visibility.HasValue && e.visibility.Value == false) {
@@ -791,57 +832,81 @@ namespace MCGalaxy {
                         //     notifiedTexture = true;
                         // }
 
-                        UInt16 texX = 0;
-                        UInt16 texY = 0;
-                        if (e.uv_offset != null) {
-                            texX = e.uv_offset[0];
-                            texY = e.uv_offset[1];
-                        }
 
                         Vec3F32 rotation = new Vec3F32 { X = 0, Y = 0, Z = 0 };
                         if (e.rotation != null) {
-                            rotation = new Vec3F32 {
-                                X = e.rotation[0],
-                                Y = e.rotation[1],
-                                Z = e.rotation[2],
-                            };
+                            rotation.X = e.rotation[0];
+                            rotation.Y = e.rotation[1];
+                            rotation.Z = e.rotation[2];
                         }
 
-                        Vec3F32 v1 = new Vec3F32 {
-                            X = e.from[0] - e.inflate,
-                            Y = e.from[1] - e.inflate,
-                            Z = e.from[2] - e.inflate,
+                        Vec3F32 min = new Vec3F32 {
+                            X = (e.from[0] - e.inflate) / 16.0f,
+                            Y = (e.from[1] - e.inflate) / 16.0f,
+                            Z = (e.from[2] - e.inflate) / 16.0f,
                         };
-                        Vec3F32 v2 = new Vec3F32 {
-                            X = e.to[0] + e.inflate,
-                            Y = e.to[1] + e.inflate,
-                            Z = e.to[2] + e.inflate,
+                        Vec3F32 max = new Vec3F32 {
+                            X = (e.to[0] + e.inflate) / 16.0f,
+                            Y = (e.to[1] + e.inflate) / 16.0f,
+                            Z = (e.to[2] + e.inflate) / 16.0f,
                         };
 
                         if (e.shade.HasValue && e.shade.Value == false) {
                             // mirroring enabled, flip X's
-                            float tmp = v1.X;
-                            v1.X = v2.X;
-                            v2.X = tmp;
+                            float tmp = min.X;
+                            min.X = max.X;
+                            max.X = tmp;
                         }
 
+                        var rotationOrigin = new Vec3F32 {
+                            X = e.origin[0] / 16.0f,
+                            Y = e.origin[1] / 16.0f,
+                            Z = e.origin[2] / 16.0f,
+                        };
+
+                        // faces in order [u1, v1, u2, v2]
+                        /* uv coords in order: top, bottom, front, back, left, right */
+                        UInt16[] u1 = new UInt16[] {
+                           e.faces.up.uv[0],
+                           e.faces.down.uv[0],
+                           e.faces.north.uv[0],
+                           e.faces.south.uv[0],
+                           e.faces.east.uv[0],
+                           e.faces.west.uv[0],
+                        };
+                        UInt16[] v1 = new[] {
+                            e.faces.up.uv[1],
+                            e.faces.down.uv[1],
+                            e.faces.north.uv[1],
+                            e.faces.south.uv[1],
+                            e.faces.east.uv[1],
+                            e.faces.west.uv[1],
+                        };
+                        UInt16[] u2 = new[] {
+                           e.faces.up.uv[2],
+                           e.faces.down.uv[2],
+                           e.faces.north.uv[2],
+                           e.faces.south.uv[2],
+                           e.faces.east.uv[2],
+                           e.faces.west.uv[2],
+                        };
+                        UInt16[] v2 = new[] {
+                            e.faces.up.uv[3],
+                            e.faces.down.uv[3],
+                            e.faces.north.uv[3],
+                            e.faces.south.uv[3],
+                            e.faces.east.uv[3],
+                            e.faces.west.uv[3],
+                        };
+
                         var part = new CustomModelPart {
-                            boxDesc = new BoxDesc {
-                                texX = texX,
-                                texY = texY,
-                                sizeX = (byte)Math.Abs(e.faces.up.uv[2] - e.faces.up.uv[0]),
-                                sizeY = (byte)Math.Abs(e.faces.east.uv[3] - e.faces.east.uv[1]),
-                                sizeZ = (byte)Math.Abs(e.faces.east.uv[2] - e.faces.east.uv[0]),
-                                x1 = v1.X / 16.0f,
-                                y1 = v1.Y / 16.0f,
-                                z1 = v1.Z / 16.0f,
-                                x2 = v2.X / 16.0f,
-                                y2 = v2.Y / 16.0f,
-                                z2 = v2.Z / 16.0f,
-                                rotX = e.origin[0] / 16.0f,
-                                rotY = e.origin[1] / 16.0f,
-                                rotZ = e.origin[2] / 16.0f,
-                            },
+                            min = min,
+                            max = max,
+                            u1 = u1,
+                            v1 = v1,
+                            u2 = u2,
+                            v2 = v2,
+                            rotationOrigin = rotationOrigin,
                             rotation = rotation,
                             anim = CustomModelAnim.None,
                             fullbright = false,
@@ -929,8 +994,6 @@ namespace MCGalaxy {
                     // 3 numbers
                     public float[] origin;
 
-                    // optional, 2 numbers
-                    public UInt16[] uv_offset;
                     public Faces faces;
                 }
                 public class Faces {
@@ -955,6 +1018,9 @@ namespace MCGalaxy {
         }
 #pragma warning restore 0649
 
+
     }
+
+
 
 }
