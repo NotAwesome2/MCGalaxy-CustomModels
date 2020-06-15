@@ -3,8 +3,6 @@
 //reference System.Collections.dll
 //reference Newtonsoft.Json.dll
 
-// TODO test non-box uv
-
 using System;
 using System.Collections.Generic;
 using System.IO;
