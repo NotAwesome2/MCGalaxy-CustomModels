@@ -338,7 +338,6 @@ namespace MCGalaxy {
                 visibleModels.Add(e.Model);
             }
 
-
             var sentModels = SentCustomModels[p.name];
             // clone so we can modify while we iterate
             foreach (var modelName in sentModels.ToArray()) {
@@ -361,7 +360,6 @@ namespace MCGalaxy {
             foreach (Player p in PlayerInfo.Online.Items) {
                 CheckRemoveModel(p, modelName);
             }
-
 
             // add this model back to players who see entities using it
             foreach (Player p in PlayerInfo.Online.Items) {
@@ -397,9 +395,7 @@ namespace MCGalaxy {
         static void OnPlayerDisconnect(Player p, string reason) {
             SentCustomModels.Remove(p.name);
 
-
             Level prevLevel = p.level;
-
             if (prevLevel != null) {
                 // tell other players still on the last map to remove our model
                 // if we were the last one using that model
@@ -463,7 +459,7 @@ namespace MCGalaxy {
 
         static bool GetRealPixels(Player p, string input, string argName, ref float output) {
             float tmp = 0.0f;
-            if (CommandParser.GetReal(p, input, "nameY", ref tmp)) {
+            if (CommandParser.GetReal(p, input, argName, ref tmp)) {
                 output = tmp / 16.0f;
                 return true;
             } else {
@@ -720,8 +716,7 @@ namespace MCGalaxy {
 
         //------------------------------------------------------------------bbmodel json parsing
 
-
-        public class Vec3F32Converter : JsonConverter {
+        class Vec3F32Converter : JsonConverter {
             public override bool CanConvert(Type objectType) {
                 return objectType == typeof(Vec3F32);
             }
