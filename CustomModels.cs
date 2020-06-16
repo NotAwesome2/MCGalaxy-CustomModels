@@ -838,7 +838,6 @@ namespace MCGalaxy {
                         //     notifiedTexture = true;
                         // }
 
-
                         Vec3F32 rotation = new Vec3F32 { X = 0, Y = 0, Z = 0 };
                         if (e.rotation != null) {
                             rotation.X = e.rotation[0];
@@ -856,13 +855,6 @@ namespace MCGalaxy {
                             Y = (e.to[1] + e.inflate) / 16.0f,
                             Z = (e.to[2] + e.inflate) / 16.0f,
                         };
-
-                        if (e.shade.HasValue && e.shade.Value == false) {
-                            // mirroring enabled, flip X's
-                            float tmp = min.X;
-                            min.X = max.X;
-                            max.X = tmp;
-                        }
 
                         var rotationOrigin = new Vec3F32 {
                             X = e.origin[0] / 16.0f,
@@ -1002,6 +994,8 @@ namespace MCGalaxy {
                     public float[] origin;
 
                     public Faces faces;
+
+                    public string uuid;
                 }
                 public class Faces {
                     public Face north;
@@ -1015,6 +1009,9 @@ namespace MCGalaxy {
                     // 4 numbers
                     public UInt16[] uv;
                     public UInt16? texture;
+                }
+                public class OutlinerObject {
+                    public float[] origin;
                 }
             }
 
