@@ -1,6 +1,5 @@
 //reference System.dll
 //reference System.Core.dll
-//reference System.Collections.dll
 //reference Newtonsoft.Json.dll
 
 using System;
