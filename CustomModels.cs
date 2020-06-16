@@ -328,9 +328,18 @@ namespace MCGalaxy {
                 numModels,
                 numPersonalModels
             );
+
+            // initialize because of a late plugin load
+            foreach (Player p in PlayerInfo.Online.Items) {
+                SentCustomModels.Add(p.name, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+                ModelNameToIdForPlayer.Add(p.name, new Dictionary<string, byte>(StringComparer.OrdinalIgnoreCase));
+            }
         }
 
         public override void Unload(bool shutdown) {
+            SentCustomModels.Clear();
+            ModelNameToIdForPlayer.Clear();
+
             OnPlayerConnectEvent.Unregister(OnPlayerConnect);
             OnPlayerDisconnectEvent.Unregister(OnPlayerDisconnect);
             OnJoiningLevelEvent.Unregister(OnJoiningLevel);
