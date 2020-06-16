@@ -872,8 +872,9 @@ namespace MCGalaxy {
 
                         // faces in order [u1, v1, u2, v2]
                         /* uv coords in order: top, bottom, front, back, left, right */
+                        // swap up's uv's
                         UInt16[] u1 = new UInt16[] {
-                           e.faces.up.uv[0],
+                           e.faces.up.uv[2],
                            e.faces.down.uv[0],
                            e.faces.north.uv[0],
                            e.faces.south.uv[0],
@@ -881,7 +882,7 @@ namespace MCGalaxy {
                            e.faces.west.uv[0],
                         };
                         UInt16[] v1 = new[] {
-                            e.faces.up.uv[1],
+                            e.faces.up.uv[3],
                             e.faces.down.uv[1],
                             e.faces.north.uv[1],
                             e.faces.south.uv[1],
@@ -889,7 +890,7 @@ namespace MCGalaxy {
                             e.faces.west.uv[1],
                         };
                         UInt16[] u2 = new[] {
-                           e.faces.up.uv[2],
+                           e.faces.up.uv[0],
                            e.faces.down.uv[2],
                            e.faces.north.uv[2],
                            e.faces.south.uv[2],
@@ -897,7 +898,7 @@ namespace MCGalaxy {
                            e.faces.west.uv[2],
                         };
                         UInt16[] v2 = new[] {
-                            e.faces.up.uv[3],
+                            e.faces.up.uv[1],
                             e.faces.down.uv[3],
                             e.faces.north.uv[3],
                             e.faces.south.uv[3],
@@ -908,9 +909,9 @@ namespace MCGalaxy {
                         var part = new CustomModelPart {
                             min = min,
                             max = max,
-                            u1 = u1,
+                            u1 = u2,
                             v1 = v1,
-                            u2 = u2,
+                            u2 = u1,
                             v2 = v2,
                             rotationOrigin = rotationOrigin,
                             rotation = rotation,
