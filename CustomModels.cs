@@ -816,6 +816,7 @@ namespace MCGalaxy {
                 public Meta meta;
                 public string name;
                 public Element[] elements;
+                public UuidOrGroup[] outliner;
                 public Resolution resolution;
 
                 public string ToJson() {
@@ -823,60 +824,114 @@ namespace MCGalaxy {
                 }
 
                 public CustomModelPart[] ToCustomModelParts() {
-                    var list = new List<CustomModelPart>();
+                    var parts = new List<CustomModelPart>();
 
-                    // bool notifiedTexture = false;
+                    var elementByUuid = new Dictionary<string, Element>();
                     foreach (Element e in this.elements) {
-                        if (e.visibility.HasValue && e.visibility.Value == false) {
-                            continue;
-                        }
+                        elementByUuid.Add(e.uuid, e);
 
-                        // if (!notifiedTexture &&
-                        //     (!e.faces.north.texture.HasValue ||
-                        //         !e.faces.east.texture.HasValue ||
-                        //         !e.faces.south.texture.HasValue ||
-                        //         !e.faces.west.texture.HasValue ||
-                        //         !e.faces.up.texture.HasValue ||
-                        //         !e.faces.down.texture.HasValue
-                        //     )
-                        // ) {
-                        //     Logger.Log(
-                        //         LogType.Warning,
-                        //         "Warning: Blockbench Model '" +
-                        //         this.name +
-                        //         "' has one or more faces with no texture!"
-                        //     );
-                        //     notifiedTexture = true;
+                    }
+
+                    foreach (var uuidOrGroup in this.outliner) {
+                        HandleGroup(
+                            uuidOrGroup,
+                            elementByUuid,
+                            parts,
+                            new[] { 0.0f, 0.0f, 0.0f },
+                            new[] { 0.0f, 0.0f, 0.0f },
+                            true
+                        );
+                    }
+
+                    return parts.ToArray();
+                }
+
+                void HandleGroup(
+                    UuidOrGroup uuidOrGroup,
+                    Dictionary<string, Element> elementByUuid,
+                    List<CustomModelPart> parts,
+                    float[] rotation,
+                    float[] origin,
+                    bool visibility
+                ) {
+                    if (uuidOrGroup.group == null) {
+                        // Logger.Log(LogType.Warning, "uuid " + uuidOrGroup.uuid);
+                        var e = elementByUuid[uuidOrGroup.uuid];
+                        e.rotation[0] += rotation[0];
+                        e.rotation[1] += rotation[1];
+                        e.rotation[2] += rotation[2];
+                        e.origin[0] += origin[0];
+                        e.origin[1] += origin[1];
+                        e.origin[2] += origin[2];
+                        if (!visibility) {
+                            e.visibility = visibility;
+                        }
+                        // if (e.name.StartsWith("tail")) {
+                        //     Logger.Log(LogType.Warning, "rotation " + e.rotation[0] + " " + e.rotation[1] + " " + e.rotation[2]);
+                        //     Logger.Log(LogType.Warning, "origin " + e.origin[0] + " " + e.origin[1] + " " + e.origin[2]);
                         // }
-
-                        Vec3F32 rotation = new Vec3F32 { X = 0, Y = 0, Z = 0 };
-                        if (e.rotation != null) {
-                            rotation.X = e.rotation[0];
-                            rotation.Y = e.rotation[1];
-                            rotation.Z = e.rotation[2];
+                        var part = ToCustomModelPart(e);
+                        if (part != null) {
+                            parts.Add(part);
                         }
-
-                        Vec3F32 min = new Vec3F32 {
-                            X = (e.from[0] - e.inflate) / 16.0f,
-                            Y = (e.from[1] - e.inflate) / 16.0f,
-                            Z = (e.from[2] - e.inflate) / 16.0f,
+                    } else {
+                        // Logger.Log(LogType.Warning, "group " + uuidOrGroup.group.uuid);
+                        var innerRotation = new[] {
+                            uuidOrGroup.group.rotation[0],
+                            uuidOrGroup.group.rotation[1],
+                            uuidOrGroup.group.rotation[2],
                         };
-                        Vec3F32 max = new Vec3F32 {
-                            X = (e.to[0] + e.inflate) / 16.0f,
-                            Y = (e.to[1] + e.inflate) / 16.0f,
-                            Z = (e.to[2] + e.inflate) / 16.0f,
+                        var innerOrigin = new[] {
+                            uuidOrGroup.group.origin[0],
+                            uuidOrGroup.group.origin[1],
+                            uuidOrGroup.group.origin[2],
                         };
+                        foreach (var innerGroup in uuidOrGroup.group.children) {
+                            HandleGroup(
+                                innerGroup,
+                                elementByUuid,
+                                parts,
+                                rotation,
+                                origin,
+                                uuidOrGroup.group.visibility
+                            );
+                        }
+                    }
+                }
 
-                        var rotationOrigin = new Vec3F32 {
-                            X = e.origin[0] / 16.0f,
-                            Y = e.origin[1] / 16.0f,
-                            Z = e.origin[2] / 16.0f,
-                        };
+                CustomModelPart ToCustomModelPart(Element e) {
+                    if (!e.visibility) {
+                        return null;
+                    }
 
-                        // faces in order [u1, v1, u2, v2]
-                        /* uv coords in order: top, bottom, front, back, left, right */
-                        // swap up's uv's
-                        UInt16[] u1 = new UInt16[] {
+                    Vec3F32 rotation = new Vec3F32 { X = 0, Y = 0, Z = 0 };
+                    if (e.rotation != null) {
+                        rotation.X = e.rotation[0];
+                        rotation.Y = e.rotation[1];
+                        rotation.Z = e.rotation[2];
+                    }
+
+                    Vec3F32 min = new Vec3F32 {
+                        X = (e.from[0] - e.inflate) / 16.0f,
+                        Y = (e.from[1] - e.inflate) / 16.0f,
+                        Z = (e.from[2] - e.inflate) / 16.0f,
+                    };
+                    Vec3F32 max = new Vec3F32 {
+                        X = (e.to[0] + e.inflate) / 16.0f,
+                        Y = (e.to[1] + e.inflate) / 16.0f,
+                        Z = (e.to[2] + e.inflate) / 16.0f,
+                    };
+
+                    var rotationOrigin = new Vec3F32 {
+                        X = e.origin[0] / 16.0f,
+                        Y = e.origin[1] / 16.0f,
+                        Z = e.origin[2] / 16.0f,
+                    };
+
+                    // faces in order [u1, v1, u2, v2]
+                    /* uv coords in order: top, bottom, front, back, left, right */
+                    // swap up's uv's
+                    UInt16[] u1 = new UInt16[] {
                            e.faces.up.uv[2],
                            e.faces.down.uv[0],
                            e.faces.north.uv[0],
@@ -884,7 +939,7 @@ namespace MCGalaxy {
                            e.faces.east.uv[0],
                            e.faces.west.uv[0],
                         };
-                        UInt16[] v1 = new[] {
+                    UInt16[] v1 = new[] {
                             e.faces.up.uv[3],
                             e.faces.down.uv[1],
                             e.faces.north.uv[1],
@@ -892,7 +947,7 @@ namespace MCGalaxy {
                             e.faces.east.uv[1],
                             e.faces.west.uv[1],
                         };
-                        UInt16[] u2 = new[] {
+                    UInt16[] u2 = new[] {
                            e.faces.up.uv[0],
                            e.faces.down.uv[2],
                            e.faces.north.uv[2],
@@ -900,7 +955,7 @@ namespace MCGalaxy {
                            e.faces.east.uv[2],
                            e.faces.west.uv[2],
                         };
-                        UInt16[] v2 = new[] {
+                    UInt16[] v2 = new[] {
                             e.faces.up.uv[1],
                             e.faces.down.uv[3],
                             e.faces.north.uv[3],
@@ -909,63 +964,59 @@ namespace MCGalaxy {
                             e.faces.west.uv[3],
                         };
 
-                        var part = new CustomModelPart {
-                            min = min,
-                            max = max,
-                            u1 = u2,
-                            v1 = v1,
-                            u2 = u1,
-                            v2 = v2,
-                            rotationOrigin = rotationOrigin,
-                            rotation = rotation,
-                            anim = CustomModelAnim.None,
-                            fullbright = false,
-                        };
+                    var part = new CustomModelPart {
+                        min = min,
+                        max = max,
+                        u1 = u2,
+                        v1 = v1,
+                        u2 = u1,
+                        v2 = v2,
+                        rotationOrigin = rotationOrigin,
+                        rotation = rotation,
+                        anim = CustomModelAnim.None,
+                        fullbright = false,
+                    };
 
-                        foreach (var attr in e.name.SplitComma()) {
+                    foreach (var attr in e.name.SplitComma()) {
 
-                            var animModifier = 1.0f;
-                            var colonSplit = attr.Split(':');
-                            if (colonSplit.Length >= 2) {
-                                animModifier = float.Parse(colonSplit[1]);
-                            }
-
-                            if (attr.CaselessStarts("head")) {
-                                part.anim = CustomModelAnim.Head;
-                            } else if (attr.CaselessStarts("leftleg")) {
-                                part.anim = CustomModelAnim.LeftLeg;
-                            } else if (attr.CaselessStarts("rightleg")) {
-                                part.anim = CustomModelAnim.RightLeg;
-                            } else if (attr.CaselessStarts("leftarm")) {
-                                part.anim = CustomModelAnim.LeftArm;
-                            } else if (attr.CaselessStarts("rightarm")) {
-                                part.anim = CustomModelAnim.RightArm;
-                            } else if (attr.CaselessStarts("spinxvelocity")) {
-                                part.anim = CustomModelAnim.SpinXVelocity;
-                            } else if (attr.CaselessStarts("spinyvelocity")) {
-                                part.anim = CustomModelAnim.SpinYVelocity;
-                            } else if (attr.CaselessStarts("spinzvelocity")) {
-                                part.anim = CustomModelAnim.SpinZVelocity;
-                            } else if (attr.CaselessStarts("spinx")) {
-                                part.anim = CustomModelAnim.SpinX;
-                            } else if (attr.CaselessStarts("spiny")) {
-                                part.anim = CustomModelAnim.SpinY;
-                            } else if (attr.CaselessStarts("spinz")) {
-                                part.anim = CustomModelAnim.SpinZ;
-                            }
-
-                            part.animModifier = animModifier;
+                        var animModifier = 1.0f;
+                        var colonSplit = attr.Split(':');
+                        if (colonSplit.Length >= 2) {
+                            animModifier = float.Parse(colonSplit[1]);
                         }
 
-                        if (e.name.CaselessContains("fullbright")) {
-                            part.fullbright = true;
+                        if (attr.CaselessStarts("head")) {
+                            part.anim = CustomModelAnim.Head;
+                        } else if (attr.CaselessStarts("leftleg")) {
+                            part.anim = CustomModelAnim.LeftLeg;
+                        } else if (attr.CaselessStarts("rightleg")) {
+                            part.anim = CustomModelAnim.RightLeg;
+                        } else if (attr.CaselessStarts("leftarm")) {
+                            part.anim = CustomModelAnim.LeftArm;
+                        } else if (attr.CaselessStarts("rightarm")) {
+                            part.anim = CustomModelAnim.RightArm;
+                        } else if (attr.CaselessStarts("spinxvelocity")) {
+                            part.anim = CustomModelAnim.SpinXVelocity;
+                        } else if (attr.CaselessStarts("spinyvelocity")) {
+                            part.anim = CustomModelAnim.SpinYVelocity;
+                        } else if (attr.CaselessStarts("spinzvelocity")) {
+                            part.anim = CustomModelAnim.SpinZVelocity;
+                        } else if (attr.CaselessStarts("spinx")) {
+                            part.anim = CustomModelAnim.SpinX;
+                        } else if (attr.CaselessStarts("spiny")) {
+                            part.anim = CustomModelAnim.SpinY;
+                        } else if (attr.CaselessStarts("spinz")) {
+                            part.anim = CustomModelAnim.SpinZ;
                         }
 
-                        list.Add(part);
-
+                        part.animModifier = animModifier;
                     }
 
-                    return list.ToArray();
+                    if (e.name.CaselessContains("fullbright")) {
+                        part.fullbright = true;
+                    }
+
+                    return part;
                 }
 
                 public class Resolution {
@@ -976,28 +1027,32 @@ namespace MCGalaxy {
                     public bool box_uv;
                 }
                 public class Element {
+                    public Element() {
+                        this.rotation = new[] { 0.0f, 0.0f, 0.0f };
+                        this.origin = new[] { 0.0f, 0.0f, 0.0f };
+                        this.visibility = true;
+                        this.inflate = 0.0f;
+                    }
+
                     public string name;
                     // 3 numbers
                     public float[] from;
                     // 3 numbers
                     public float[] to;
 
-                    public bool? visibility;
+                    public bool visibility;
 
                     // if set to 1, uses a default png with some colors on it,
                     // we will only support skin pngs, so maybe notify user?
                     public UInt16 autouv;
 
-                    // optional
                     public float inflate;
 
                     // if false, mirroring is enabled
                     // if null, mirroring is disabled
                     public bool? shade;
 
-                    // so far only false?
-                    // public locked: bool;
-                    // optional, 3 numbers
+                    // 3 numbers
                     public float[] rotation;
 
                     /// "Pivot Point"
@@ -1005,7 +1060,6 @@ namespace MCGalaxy {
                     public float[] origin;
 
                     public Faces faces;
-
                     public string uuid;
                 }
                 public class Faces {
@@ -1021,21 +1075,74 @@ namespace MCGalaxy {
                     public UInt16[] uv;
                     public UInt16? texture;
                 }
-                public class OutlinerObject {
-                    public float[] origin;
+                public class UuidOrGroup {
+                    public string uuid;
+                    public OutlinerGroup group;
                 }
+                public class OutlinerGroup {
+                    public OutlinerGroup() {
+                        this.rotation = new[] { 0.0f, 0.0f, 0.0f };
+                        this.origin = new[] { 0.0f, 0.0f, 0.0f };
+                        this.visibility = true;
+                    }
+                    public string name;
+                    public string uuid;
+
+                    public bool visibility;
+
+                    // 3 numbers
+                    public float[] rotation;
+
+                    /// "Pivot Point"
+                    // 3 numbers
+                    public float[] origin;
+
+                    public UuidOrGroup[] children;
+                }
+                public class JsonUuidOrGroup : JsonConverter {
+                    public override bool CanConvert(Type objectType) {
+                        return objectType == typeof(UuidOrGroup);
+                    }
+
+                    public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer) {
+                        if (reader.TokenType == JsonToken.String) {
+                            JValue jValue = new JValue(reader.Value);
+                            return new UuidOrGroup {
+                                uuid = (string)jValue,
+                                group = null,
+                            };
+                        } else {
+                            JObject jo = JObject.Load(reader);
+                            var group = new OutlinerGroup { };
+                            serializer.Populate(jo.CreateReader(), group);
+                            return new UuidOrGroup {
+                                uuid = null,
+                                group = group,
+                            };
+                        }
+                    }
+
+                    public override bool CanWrite {
+                        get { return false; }
+                    }
+
+                    public override void WriteJson(JsonWriter writer,
+                        object value, JsonSerializer serializer) {
+                        throw new NotImplementedException();
+                    }
+                }
+
             }
+
+            static JsonSerializerSettings jsonSettings = new JsonSerializerSettings {
+                Converters = new[] { new JsonRoot.JsonUuidOrGroup() }
+            };
 
             public static JsonRoot Parse(string json) {
-                JsonRoot m = JsonConvert.DeserializeObject<JsonRoot>(json);
+                JsonRoot m = JsonConvert.DeserializeObject<JsonRoot>(json, jsonSettings);
                 return m;
             }
-        }
+        } // class BlockBench
 #pragma warning restore 0649
-
-
-    }
-
-
-
-}
+    } // class CustomModelsPlugin
+} // namespace MCGalaxy
