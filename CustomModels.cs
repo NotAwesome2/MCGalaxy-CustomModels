@@ -378,13 +378,13 @@ namespace MCGalaxy {
         // sends all missing models in level to player
         static void CheckAddRemove(Player p, Level level) {
             var visibleModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            visibleModels.Add(p.Model);
+            visibleModels.Add(ModelInfo.GetRawModel(p.Model));
 
             foreach (Player e in level.getPlayers()) {
-                visibleModels.Add(e.Model);
+                visibleModels.Add(ModelInfo.GetRawModel(e.Model));
             }
             foreach (PlayerBot e in level.Bots.Items) {
-                visibleModels.Add(e.Model);
+                visibleModels.Add(ModelInfo.GetRawModel(e.Model));
             }
 
             var sentModels = SentCustomModels[p.name];
@@ -419,8 +419,8 @@ namespace MCGalaxy {
             // so that we update the model on the client
             var loadedLevels = new Dictionary<string, Level>(StringComparer.OrdinalIgnoreCase);
             foreach (Player p in PlayerInfo.Online.Items) {
-                if (p.Model.CaselessEq(modelName)) {
-                    Entities.UpdateModel(p, p.Model);
+                if (ModelInfo.GetRawModel(p.Model).CaselessEq(modelName)) {
+                    Entities.UpdateModel(p, ModelInfo.GetRawModel(p.Model));
                 }
 
                 if (!loadedLevels.ContainsKey(p.level.name)) {
@@ -430,8 +430,8 @@ namespace MCGalaxy {
             foreach (var entry in loadedLevels) {
                 var level = entry.Value;
                 foreach (PlayerBot e in level.Bots.Items) {
-                    if (e.Model.CaselessEq(modelName)) {
-                        Entities.UpdateModel(e, e.Model);
+                    if (ModelInfo.GetRawModel(e.Model).CaselessEq(modelName)) {
+                        Entities.UpdateModel(e, ModelInfo.GetRawModel(e.Model));
                     }
                 }
             }
@@ -476,9 +476,20 @@ namespace MCGalaxy {
         }
 
         static void OnBeforeChangeModel(Player p, byte entityID, string modelName) {
-            // use CheckAddRemove because we also want to remove the previous model,
-            // if no one else is using it
-            CheckAddRemove(p, p.level);
+            try {
+                // use CheckAddRemove because we also want to remove the previous model,
+                // if no one else is using it
+                CheckAddRemove(p, p.level);
+            } catch (Exception e) {
+                Logger.Log(
+                    LogType.Error,
+                    "CustomModels OnBeforeChangeModel {0} {1}: {2}\n{3}",
+                    p.name,
+                    modelName,
+                    e.Message,
+                    e.StackTrace
+                );
+            }
         }
 
         //------------------------------------------------------------------commands
