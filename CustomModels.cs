@@ -420,7 +420,7 @@ namespace MCGalaxy {
             var loadedLevels = new Dictionary<string, Level>(StringComparer.OrdinalIgnoreCase);
             foreach (Player p in PlayerInfo.Online.Items) {
                 if (ModelInfo.GetRawModel(p.Model).CaselessEq(modelName)) {
-                    Entities.UpdateModel(p, ModelInfo.GetRawModel(p.Model));
+                    Entities.UpdateModel(p, p.Model);
                 }
 
                 if (!loadedLevels.ContainsKey(p.level.name)) {
@@ -431,7 +431,7 @@ namespace MCGalaxy {
                 var level = entry.Value;
                 foreach (PlayerBot e in level.Bots.Items) {
                     if (ModelInfo.GetRawModel(e.Model).CaselessEq(modelName)) {
-                        Entities.UpdateModel(e, ModelInfo.GetRawModel(e.Model));
+                        Entities.UpdateModel(e, e.Model);
                     }
                 }
             }
