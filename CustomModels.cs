@@ -22,6 +22,7 @@ namespace MCGalaxy {
 
         //------------------------------------------------------------------bbmodel/ccmodel file loading
 
+        // Path.GetExtension includes the period "."
         const string BlockBenchExt = ".bbmodel";
         const string CCModelExt = ".ccmodel";
         const string CCdirectory = "plugins/models/";
@@ -631,6 +632,7 @@ namespace MCGalaxy {
             public override void Help(Player p) {
                 p.Message("%T/CustomModel upload [bbmodel url] %H- Upload a BlockBench file to use as your personal model.");
                 p.Message("%T/CustomModel config [model] [field] [value] %H- Configures options on your personal model.");
+                p.Message("%T/CustomModel list %H- List all public custom models.");
                 // TODO make fields above have help and let "/help CustomModel fields" show them
 
                 // p.Message("%HUse %T/Help CustomModel models %Hfor a list of models.");
@@ -758,6 +760,18 @@ namespace MCGalaxy {
                             }
                             return;
                         }
+                    } else if (words[0].CaselessEq("list")) {
+                        var modelNames = new List<string>();
+                        foreach (var entry in new DirectoryInfo(CCdirectory).GetFiles()) {
+                            string fileName = entry.Name;
+                            if (Path.GetExtension(fileName).CaselessEq(CCModelExt)) {
+                                string name = Path.GetFileNameWithoutExtension(fileName);
+                                modelNames.Add(name);
+                            }
+                        }
+                        p.Message("%SCustom Models: %T{0}", modelNames.Join("%S, %T"));
+
+                        return;
                     }
                 }
 
