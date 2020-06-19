@@ -42,7 +42,6 @@ namespace MCGalaxy {
             public bool pushes;
             public bool usesHumanSkin;
             public bool calcHumanAnims;
-            public bool hideFirstPersonArm;
 
             public static StoredCustomModel FromCustomModel(CustomModel model) {
                 // convert to pixel units
@@ -68,7 +67,6 @@ namespace MCGalaxy {
                     pushes = model.pushes,
                     usesHumanSkin = model.usesHumanSkin,
                     calcHumanAnims = model.calcHumanAnims,
-                    hideFirstPersonArm = model.hideFirstPersonArm,
                 };
                 return storedCustomModel;
             }
@@ -117,7 +115,6 @@ namespace MCGalaxy {
                     pushes = this.pushes,
                     usesHumanSkin = this.usesHumanSkin,
                     calcHumanAnims = this.calcHumanAnims,
-                    hideFirstPersonArm = this.hideFirstPersonArm,
                 };
 
                 return model;
@@ -624,14 +621,6 @@ namespace MCGalaxy {
                     (model, p, input) => CommandParser.GetBool(p, input, ref model.calcHumanAnims)
                 )
             },
-            {
-                "hideFirstPersonArm",
-                new ChatType(
-                    "hideFirstPersonArm",
-                    (model) => model.hideFirstPersonArm.ToString(),
-                    (model, p, input) => CommandParser.GetBool(p, input, ref model.hideFirstPersonArm)
-                )
-            },
         };
 
         class CmdCustomModel : Command {
@@ -932,37 +921,37 @@ namespace MCGalaxy {
                     /* uv coords in order: top, bottom, front, back, left, right */
                     // swap up's uv's
                     UInt16[] u1 = new UInt16[] {
-                           e.faces.up.uv[2],
-                           e.faces.down.uv[0],
-                           e.faces.north.uv[0],
-                           e.faces.south.uv[0],
-                           e.faces.east.uv[0],
-                           e.faces.west.uv[0],
-                        };
+                        e.faces.up.uv[2],
+                        e.faces.down.uv[0],
+                        e.faces.north.uv[0],
+                        e.faces.south.uv[0],
+                        e.faces.east.uv[0],
+                        e.faces.west.uv[0],
+                    };
                     UInt16[] v1 = new[] {
-                            e.faces.up.uv[3],
-                            e.faces.down.uv[1],
-                            e.faces.north.uv[1],
-                            e.faces.south.uv[1],
-                            e.faces.east.uv[1],
-                            e.faces.west.uv[1],
-                        };
+                        e.faces.up.uv[3],
+                        e.faces.down.uv[1],
+                        e.faces.north.uv[1],
+                        e.faces.south.uv[1],
+                        e.faces.east.uv[1],
+                        e.faces.west.uv[1],
+                    };
                     UInt16[] u2 = new[] {
-                           e.faces.up.uv[0],
-                           e.faces.down.uv[2],
-                           e.faces.north.uv[2],
-                           e.faces.south.uv[2],
-                           e.faces.east.uv[2],
-                           e.faces.west.uv[2],
-                        };
+                        e.faces.up.uv[0],
+                        e.faces.down.uv[2],
+                        e.faces.north.uv[2],
+                        e.faces.south.uv[2],
+                        e.faces.east.uv[2],
+                        e.faces.west.uv[2],
+                    };
                     UInt16[] v2 = new[] {
-                            e.faces.up.uv[1],
-                            e.faces.down.uv[3],
-                            e.faces.north.uv[3],
-                            e.faces.south.uv[3],
-                            e.faces.east.uv[3],
-                            e.faces.west.uv[3],
-                        };
+                        e.faces.up.uv[1],
+                        e.faces.down.uv[3],
+                        e.faces.north.uv[3],
+                        e.faces.south.uv[3],
+                        e.faces.east.uv[3],
+                        e.faces.west.uv[3],
+                    };
 
                     var part = new CustomModelPart {
                         min = min,
@@ -978,7 +967,6 @@ namespace MCGalaxy {
                     };
 
                     foreach (var attr in e.name.SplitComma()) {
-
                         var animModifier = 1.0f;
                         var colonSplit = attr.Split(':');
                         if (colonSplit.Length >= 2) {
@@ -1007,6 +995,8 @@ namespace MCGalaxy {
                             part.anim = CustomModelAnim.SpinY;
                         } else if (attr.CaselessStarts("spinz")) {
                             part.anim = CustomModelAnim.SpinZ;
+                        } else if (attr.CaselessStarts("hand")) {
+                            part.firstPersonArm = true;
                         }
 
                         part.animModifier = animModifier;
@@ -1071,9 +1061,14 @@ namespace MCGalaxy {
                     public Face down;
                 }
                 public class Face {
+                    public Face() {
+                        this.rotation = 0;
+                    }
+
                     // 4 numbers
                     public UInt16[] uv;
                     public UInt16? texture;
+                    public UInt16 rotation;
                 }
                 public class UuidOrGroup {
                     public string uuid;
