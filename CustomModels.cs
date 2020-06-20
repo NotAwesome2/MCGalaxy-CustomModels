@@ -492,290 +492,302 @@ namespace MCGalaxy {
 
         //------------------------------------------------------------------commands
 
-        class ChatType {
-            public Func<CustomModel, string> get;
-            // (model, p, input) => bool
-            public Func<CustomModel, Player, string[], bool> set;
-            public string[] types;
-
-            public ChatType(string type, Func<CustomModel, string> get, Func<CustomModel, Player, string, bool> set) {
-                this.types = new string[] { type };
-                this.get = get;
-                this.set = (model, p, inputs) => {
-                    return set(model, p, inputs[0]);
-                };
-            }
-
-            public ChatType(
-                string[] types,
-                Func<CustomModel, string> get,
-                Func<CustomModel, Player, string[], bool> set
-            ) {
-                this.types = types;
-                this.get = get;
-                this.set = set;
-            }
-        }
-
-        static bool GetRealPixels(Player p, string input, string argName, ref float output) {
-            float tmp = 0.0f;
-            if (CommandParser.GetReal(p, input, argName, ref tmp)) {
-                output = tmp / 16.0f;
-                return true;
-            } else {
-                return false;
-            }
-        }
-
-        static Dictionary<string, ChatType> ModifiableFields = new Dictionary<string, ChatType>(StringComparer.OrdinalIgnoreCase) {
-            {
-                "nameY",
-                new ChatType(
-                    "nameY",
-                    (model) => "" + model.nameY * 16.0f,
-                    (model, p, input) => GetRealPixels(p, input, "nameY", ref model.nameY)
-                )
-            },
-            // {
-            //     "eyeY",
-            //     new ChatType(
-            //         "eyeY",
-            //         (model) => "" + model.eyeY * 16.0f,
-            //         (model, p, input) => GetRealPixels(p, input, "eyeY", ref model.eyeY)
-            //     )
-            // },
-            // {
-            //     "collisionBounds",
-            //     new ChatType(
-            //         new string[] {"x", "y", "z"},
-            //         (model) => {
-            //             return string.Format(
-            //                 "({0}, {1}, {2})",
-            //                 model.collisionBounds.X * 16.0f,
-            //                 model.collisionBounds.Y * 16.0f,
-            //                 model.collisionBounds.Z * 16.0f
-            //             );
-            //         },
-            //         (model, p, input) => {
-            //             if (!GetRealPixels(p, input[0], "x", ref model.collisionBounds.X)) return false;
-            //             if (!GetRealPixels(p, input[1], "y", ref model.collisionBounds.Y)) return false;
-            //             if (!GetRealPixels(p, input[2], "z", ref model.collisionBounds.Z)) return false;
-            //             return true;
-            //         }
-            //     )
-            // },
-            // {
-            //     "pickingBoundsMinMaxTODO",
-            //     new ChatType(
-            //         new string[] {"minX", "minY", "minZ", "maxX", "maxY", "maxZ"},
-            //         (model) => {
-            //             return string.Format(
-            //                 "from ({0}, {1}, {2}) to ({3}, {4}, {5})",
-            //                 model.pickingBoundsMin.X * 16.0f,
-            //                 model.pickingBoundsMin.Y * 16.0f,
-            //                 model.pickingBoundsMin.Z * 16.0f,
-            //                 model.pickingBoundsMax.X * 16.0f,
-            //                 model.pickingBoundsMax.Y * 16.0f,
-            //                 model.pickingBoundsMax.Z * 16.0f
-            //             );
-            //         },
-            //         (model, p, input) => {
-            //             if (!GetRealPixels(p, input[0], "minX", ref model.pickingBoundsMin.X)) return false;
-            //             if (!GetRealPixels(p, input[1], "minY", ref model.pickingBoundsMin.Y)) return false;
-            //             if (!GetRealPixels(p, input[2], "minZ", ref model.pickingBoundsMin.Z)) return false;
-            //             if (!GetRealPixels(p, input[3], "maxX", ref model.pickingBoundsMax.X)) return false;
-            //             if (!GetRealPixels(p, input[4], "maxY", ref model.pickingBoundsMax.Y)) return false;
-            //             if (!GetRealPixels(p, input[5], "maxZ", ref model.pickingBoundsMax.Z)) return false;
-            //             return true;
-            //         }
-            //     )
-            // },
-            {
-                "bobbing",
-                new ChatType(
-                    "bobbing",
-                    (model) => model.bobbing.ToString(),
-                    (model, p, input) => CommandParser.GetBool(p, input, ref model.bobbing)
-                )
-            },
-            {
-                "pushes",
-                new ChatType(
-                    "pushes",
-                    (model) => model.pushes.ToString(),
-                    (model, p, input) => CommandParser.GetBool(p, input, ref model.pushes)
-                )
-            },
-            {
-                "usesHumanSkin",
-                new ChatType(
-                    "usesHumanSkin",
-                    (model) => model.usesHumanSkin.ToString(),
-                    (model, p, input) => CommandParser.GetBool(p, input, ref model.usesHumanSkin)
-                )
-            },
-            {
-                "calcHumanAnims",
-                new ChatType(
-                    "calcHumanAnims",
-                    (model) => model.calcHumanAnims.ToString(),
-                    (model, p, input) => CommandParser.GetBool(p, input, ref model.calcHumanAnims)
-                )
-            },
-        };
-
-        class CmdCustomModel : Command {
+        class CmdCustomModel : Command2 {
             public override string name { get { return "CustomModel"; } }
             public override string shortcut { get { return "cm"; } }
             public override string type { get { return CommandTypes.Other; } }
+            public override bool MessageBlockRestricted { get { return true; } }
+            public override CommandPerm[] ExtraPerms {
+                get {
+                    return new[] {
+                        new CommandPerm(LevelPermission.Operator, "can modify/upload public custom models."),
+                    };
+                }
+            }
+            public override CommandAlias[] Aliases {
+                get {
+                    return new[] {
+                        new CommandAlias("MyCustomModel", "-own"),
+                        new CommandAlias("MyCM", "-own"),
+                    };
+                }
+            }
 
             public override void Help(Player p) {
-                p.Message("%T/CustomModel upload [bbmodel url] %H- Upload a BlockBench file to use as your personal model.");
-                p.Message("%T/CustomModel config [model] [field] [value] %H- Configures options on your personal model.");
                 p.Message("%T/CustomModel list %H- List all public custom models.");
-                // TODO make fields above have help and let "/help CustomModel fields" show them
-
-                // p.Message("%HUse %T/Help CustomModel models %Hfor a list of models.");
-                // p.Message("%HUse %T/Help CustomModel scale %Hfor how to scale a model.");
-
+                p.Message("%T/CustomModel [-own/model name] upload [bbmodel url] %H- Upload a BlockBench file to use as your personal model.");
+                p.Message("%T/CustomModel [-own/model name] config [model] [field] [value] %H- Configures options on your personal model.");
+                p.Message("%HSee %T/Help CustomModel config fields %Hfor more details on [field]");
             }
 
             public override void Help(Player p, string message) {
-                // if (message.CaselessEq("models")) {
-                //     p.Message("%HAvailable models: %SChibi, Chicken, Creeper, Giant, Humanoid, Pig, Sheep, Spider, Skeleton, Zombie, Head, Sit, Corpse");
-                //     p.Message("%HTo set a block model, use a block ID for the model name.");
-                //     p.Message("%HUse %T/Help CustomModel scale %Hfor how to scale a model.");
-                // } else if (message.CaselessEq("scale")) {
-                //     p.Message("%HFor a scaled model, put \"|[scale]\" after the model name.");
-                //     p.Message("%H  e.g. pig|0.5, chibi|3");
-                //     p.Message("%HUse X/Y/Z [scale] for [model] to set scale on one axis.");
-                //     p.Message("%H  e.g. to set twice as tall, use 'Y 2' for [model]");
-                //     p.Message("%H  Use a [scale] of 0 to reset");
-                // } else {
+                if (message.Trim() != "") {
+                    var args = new List<string>(message.SplitSpaces());
+                    if (args.Count >= 1) {
+                        string subCommand = args.PopFront();
+                        if (subCommand.CaselessEq("config")) {
+                            if (args.Count >= 1) {
+                                string subSubCommand = args.PopFront();
+                                if (subSubCommand.CaselessEq("fields")) {
+                                    var defaultModel = new CustomModel { };
+                                    foreach (var entry in ModifiableFields) {
+                                        var fieldName = entry.Key;
+                                        var chatType = entry.Value;
+                                        p.Message(
+                                            "%T{0} %H- {1} %S(Default {2})",
+                                            fieldName,
+                                            chatType.desc,
+                                            chatType.get.Invoke(defaultModel)
+                                        );
+                                    }
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                }
+
                 Help(p);
             }
 
-            public override void Use(Player p, string message) {
-                var modelName = Path.GetFileName(p.name);
+            public override void Use(Player p, string message, CommandData data) {
+                if (message.Trim() != "") {
+                    var args = new List<string>(message.SplitSpaces());
+                    if (args.Count >= 1) {
+                        // /CustomModel [name]
 
-                var words = message.SplitSpaces();
-                if (words.Length >= 1) {
-                    // /CustomModel config
-                    if (words[0].CaselessEq("config")) {
-
-                        if (!StoredCustomModel.Exists(modelName)) {
-                            p.Message("%WCustom Model %S{0} %Wnot found", modelName);
+                        string modelName = args.PopFront();
+                        if (modelName.CaselessEq("list")) {
+                            // /CustomModel list
+                            List(p);
                             return;
+                        } else if (modelName.CaselessEq("-own")) {
+                            modelName = Path.GetFileName(p.name);
+                        } else {
+                            if (!CheckExtraPerm(p, data, 1)) { return; }
+                            if (!Formatter.ValidName(p, modelName, "model name")) { return; }
                         }
 
-                        CustomModel model = StoredCustomModel.ReadFromFile(modelName).ToCustomModel(modelName);
-                        if (words.Length == 1) {
-                            // /CustomModel config
-                            foreach (var entry in ModifiableFields) {
-                                var fieldName = entry.Key;
-                                var chatType = entry.Value;
-                                p.Message(
-                                    "{0} = %T{1}",
-                                    fieldName,
-                                    chatType.get.Invoke(model)
-                                );
-                            }
-                            return;
-                        } else if (words.Length >= 2) {
-                            // /CustomModel config [field]
-                            // or
-                            // /CustomModel config [field] [value]
-                            var fieldName = words[1];
-                            if (!ModifiableFields.ContainsKey(fieldName)) {
-                                p.Message(
-                                    "%WNo such field %S{0}",
-                                    fieldName
-                                );
+                        if (args.Count >= 1) {
+                            var subCommand = args.PopFront();
+                            if (subCommand.CaselessEq("config")) {
+                                // /CustomModel [name] config
+                                Config(p, modelName, args);
+                                return;
+                            } else if (subCommand.CaselessEq("upload") && args.Count == 1) {
+                                // /CustomModel [name] upload [url]
+                                string url = args.PopFront();
+                                Upload(p, modelName, url);
+                                return;
+                            } else if (subCommand.CaselessEq("list")) {
+                                // /MyCustomModel list
+                                List(p);
                                 return;
                             }
+                        }
+                    }
+                }
 
-                            var chatType = ModifiableFields[fieldName];
-                            if (words.Length == 2) {
-                                // /CustomModel config [field]
-                                p.Message(
-                                    "{0} = %T{1}",
-                                    fieldName,
-                                    chatType.get.Invoke(model)
-                                );
-                                return;
-                            }
+                Help(p);
+            }
 
-                            var inputs = words.Skip(2).ToArray();
-                            if (inputs.Length != chatType.types.Length) {
-                                p.Message(
-                                    "%WNot enough args for setting field %S{0}",
-                                    fieldName
-                                );
-                                return;
-                            }
+            class ChatType {
+                public string[] types;
+                public string desc;
+                public Func<CustomModel, string> get;
+                // (model, p, input) => bool
+                public Func<CustomModel, Player, string[], bool> set;
 
-                            if (chatType.set.Invoke(model, p, inputs)) {
+                public ChatType(
+                    string[] types,
+                    string desc,
+                    Func<CustomModel, string> get,
+                    Func<CustomModel, Player, string[], bool> set
+                ) {
+                    this.types = types;
+                    this.desc = desc;
+                    this.get = get;
+                    this.set = set;
+                }
+
+                public ChatType(
+                    string type,
+                    string desc,
+                    Func<CustomModel, string> get,
+                    Func<CustomModel, Player, string, bool> set
+                ) : this(
+                        new string[] { type },
+                        desc,
+                        get,
+                        (model, p, inputs) => {
+                            return set(model, p, inputs[0]);
+                        }
+                ) { }
+            }
+
+            static bool GetRealPixels(Player p, string input, string argName, ref float output) {
+                float tmp = 0.0f;
+                if (CommandParser.GetReal(p, input, argName, ref tmp)) {
+                    output = tmp / 16.0f;
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+
+            static Dictionary<string, ChatType> ModifiableFields = new Dictionary<string, ChatType>(StringComparer.OrdinalIgnoreCase) {
+                {
+                    "nameY",
+                    new ChatType(
+                        "nameY",
+                        "Name text height",
+                        (model) => "" + model.nameY * 16.0f,
+                        (model, p, input) => GetRealPixels(p, input, "nameY", ref model.nameY)
+                    )
+                },
+                {
+                    "bobbing",
+                    new ChatType(
+                        "bobbing",
+                        "Third person bobbing animation",
+                        (model) => model.bobbing.ToString(),
+                        (model, p, input) => CommandParser.GetBool(p, input, ref model.bobbing)
+                    )
+                },
+                {
+                    "pushes",
+                    new ChatType(
+                        "pushes",
+                        "Push other players",
+                        (model) => model.pushes.ToString(),
+                        (model, p, input) => CommandParser.GetBool(p, input, ref model.pushes)
+                    )
+                },
+                {
+                    "usesHumanSkin",
+                    new ChatType(
+                        "usesHumanSkin",
+                        "Fall back to using entity name for skin",
+                        (model) => model.usesHumanSkin.ToString(),
+                        (model, p, input) => CommandParser.GetBool(p, input, ref model.usesHumanSkin)
+                    )
+                },
+                {
+                    "calcHumanAnims",
+                    new ChatType(
+                        "calcHumanAnims",
+                        "Use Crazy Arms",
+                        (model) => model.calcHumanAnims.ToString(),
+                        (model, p, input) => CommandParser.GetBool(p, input, ref model.calcHumanAnims)
+                    )
+                },
+            };
+
+            void Config(Player p, string modelName, List<string> args) {
+                if (!StoredCustomModel.Exists(modelName)) {
+                    p.Message("%WCustom Model %S{0} %Wnot found", modelName);
+                    return;
+                }
+
+                CustomModel model = StoredCustomModel.ReadFromFile(modelName).ToCustomModel(modelName);
+                if (args.Count == 0) {
+                    // /CustomModel [name] config
+                    foreach (var entry in ModifiableFields) {
+                        var fieldName = entry.Key;
+                        var chatType = entry.Value;
+                        p.Message(
+                            "{0} = %T{1}",
+                            fieldName,
+                            chatType.get.Invoke(model)
+                        );
+                    }
+                    return;
+                }
+
+                if (args.Count >= 1) {
+                    // /CustomModel [name] config [field]
+                    // or
+                    // /CustomModel [name] config [field] [value]
+                    var fieldName = args.PopFront();
+                    if (!ModifiableFields.ContainsKey(fieldName)) {
+                        p.Message(
+                            "%WNo such field %S{0}",
+                            fieldName
+                        );
+                        return;
+                    }
+
+                    var chatType = ModifiableFields[fieldName];
+                    if (args.Count == 0) {
+                        // /CustomModel [name] config [field]
+                        p.Message(
+                            "{0} = %T{1}",
+                            fieldName,
+                            chatType.get.Invoke(model)
+                        );
+                        return;
+                    } else {
+                        // /CustomModel config [field] [value]...
+                        var values = args.ToArray();
+                        if (values.Length != chatType.types.Length) {
+                            p.Message(
+                                "%WNot enough values for setting field %S{0}",
+                                fieldName
+                            );
+                        } else {
+                            if (chatType.set.Invoke(model, p, values)) {
                                 // field was set, update file!
 
                                 StoredCustomModel.FromCustomModel(model).WriteToFile(modelName);
                                 CheckUpdateAll(modelName);
                             }
-                            return;
                         }
-                    } else if (words[0].CaselessEq("upload")) {
-                        // /CustomModel upload
-                        // upload a personal bbmodel with a +
-
-                        if (words.Length == 2) {
-                            // /CustomModel upload [url]
-                            var url = words[1];
-                            var bytes = HttpUtil.DownloadData(url, p);
-                            if (bytes != null) {
-                                string json = System.Text.Encoding.UTF8.GetString(bytes);
-
-                                // try parsing now so that we throw and don't save the invalid file
-                                // and notify the user of the error
-                                var parts = BlockBench.Parse(json).ToCustomModelParts();
-                                if (parts.Length > Packet.MaxCustomModelParts) {
-                                    p.Message(
-                                        "%WNumber of model parts ({0}) exceeds max of {1}!",
-                                        parts.Length,
-                                        Packet.MaxCustomModelParts
-                                    );
-                                    return;
-                                }
-
-                                StoredCustomModel.WriteBBFile(modelName, json);
-
-                                if (!StoredCustomModel.Exists(modelName)) {
-                                    // create a default ccmodel file if doesn't exist
-                                    StoredCustomModel.FromCustomModel(new CustomModel { }).WriteToFile(modelName);
-                                }
-
-                                CheckUpdateAll(modelName);
-                                p.Message(
-                                    "%TCustom Model %S{0}%T updated!",
-                                    modelName
-                                );
-                            }
-                            return;
-                        }
-                    } else if (words[0].CaselessEq("list")) {
-                        var modelNames = new List<string>();
-                        foreach (var entry in new DirectoryInfo(CCdirectory).GetFiles()) {
-                            string fileName = entry.Name;
-                            if (Path.GetExtension(fileName).CaselessEq(CCModelExt)) {
-                                string name = Path.GetFileNameWithoutExtension(fileName);
-                                modelNames.Add(name);
-                            }
-                        }
-                        p.Message("%SCustom Models: %T{0}", modelNames.Join("%S, %T"));
-
-                        return;
                     }
                 }
+            }
 
-                Help(p);
+            void Upload(Player p, string modelName, string url) {
+                var bytes = HttpUtil.DownloadData(url, p);
+                if (bytes != null) {
+                    string json = System.Text.Encoding.UTF8.GetString(bytes);
+
+                    // try parsing now so that we throw and don't save the invalid file
+                    // and notify the user of the error
+                    var parts = BlockBench.Parse(json).ToCustomModelParts();
+                    if (parts.Length > Packet.MaxCustomModelParts) {
+                        p.Message(
+                            "%WNumber of model parts ({0}) exceeds max of {1}!",
+                            parts.Length,
+                            Packet.MaxCustomModelParts
+                        );
+                        return;
+                    }
+
+                    StoredCustomModel.WriteBBFile(modelName, json);
+
+                    if (!StoredCustomModel.Exists(modelName)) {
+                        // create a default ccmodel file if doesn't exist
+                        StoredCustomModel.FromCustomModel(new CustomModel { }).WriteToFile(modelName);
+                    }
+
+                    CheckUpdateAll(modelName);
+                    p.Message(
+                        "%TCustom Model %S{0}%T updated!",
+                        modelName
+                    );
+                }
+            }
+
+            void List(Player p) {
+                var modelNames = new List<string>();
+                foreach (var entry in new DirectoryInfo(CCdirectory).GetFiles()) {
+                    string fileName = entry.Name;
+                    if (Path.GetExtension(fileName).CaselessEq(CCModelExt)) {
+                        string name = Path.GetFileNameWithoutExtension(fileName);
+                        modelNames.Add(name);
+                    }
+                }
+                p.Message("%SPublic Custom Models: %T{0}", modelNames.Join("%S, %T"));
             }
         }
 
@@ -1154,4 +1166,12 @@ namespace MCGalaxy {
         } // class BlockBench
 #pragma warning restore 0649
     } // class CustomModelsPlugin
+
+    static class ListExtension {
+        public static T PopFront<T>(this List<T> list) {
+            T r = list[0];
+            list.RemoveAt(0);
+            return r;
+        }
+    }
 } // namespace MCGalaxy
