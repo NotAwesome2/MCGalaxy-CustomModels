@@ -72,26 +72,33 @@ namespace MCGalaxy {
                 return storedCustomModel;
             }
 
-            public CustomModelPart[] ToCustomModelParts(string name) {
+            BlockBench.JsonRoot cache = null;
+            BlockBench.JsonRoot ParseBlockBench(string name) {
+                if (cache != null) {
+                    return cache;
+                }
+
                 string path = GetBBPath(name);
                 string contentsBB = File.ReadAllText(path);
                 var blockBench = BlockBench.Parse(contentsBB);
+                cache = blockBench;
+                return blockBench;
+            }
+
+            public CustomModelPart[] ToCustomModelParts(string name) {
+                var blockBench = ParseBlockBench(name);
                 var parts = blockBench.ToCustomModelParts();
                 return parts;
             }
 
             public CustomModel ToCustomModel(string name) {
-
-                // TODO don't read parts twice!!
-                string path = GetBBPath(name);
-                string contentsBB = File.ReadAllText(path);
-                var blockBench = BlockBench.Parse(contentsBB);
-                var parts = blockBench.ToCustomModelParts();
+                var blockBench = ParseBlockBench(name);
 
                 // convert to block units
                 var model = new CustomModel {
                     name = name,
-                    partCount = (byte)parts.Length,
+                    // this is set in DefineModel
+                    partCount = 0,
                     uScale = blockBench.resolution.width,
                     vScale = blockBench.resolution.height,
 
@@ -262,8 +269,10 @@ namespace MCGalaxy {
         }
 
         static void DefineModel(Player p, CustomModel model, CustomModelPart[] parts) {
-            if (!p.Supports(CpeExt.CustomModels)) { return; }
+            if (!p.Supports(CpeExt.CustomModels)) return;
+
             var modelId = GetModelId(p, model.name, true).Value;
+            model.partCount = (byte)parts.Length;
             byte[] modelPacket = Packet.DefineModel(modelId, model);
             p.Send(modelPacket);
 
@@ -274,18 +283,12 @@ namespace MCGalaxy {
         }
 
         static void UndefineModel(Player p, string name) {
-            if (!p.Supports(CpeExt.CustomModels)) { return; }
+            if (!p.Supports(CpeExt.CustomModels)) return;
             byte[] modelPacket = Packet.UndefineModel(GetModelId(p, name).Value);
             p.Send(modelPacket);
 
             var modelNameToId = ModelNameToIdForPlayer[p.name];
             modelNameToId.Remove(name);
-        }
-
-        static void DefineModelForAllPlayers(CustomModel model, CustomModelPart[] parts) {
-            foreach (Player p in PlayerInfo.Online.Items) {
-                DefineModel(p, model, parts);
-            }
         }
 
         //------------------------------------------------------------------plugin interface
@@ -355,7 +358,7 @@ namespace MCGalaxy {
         static void CheckSendModel(Player p, string modelName) {
             var sentModels = SentCustomModels[p.name];
             if (!sentModels.Contains(modelName)) {
-                if (!StoredCustomModel.Exists(modelName)) { return; }
+                if (!StoredCustomModel.Exists(modelName)) return;
                 sentModels.Add(modelName);
 
                 var storedModel = StoredCustomModel.ReadFromFile(modelName);
@@ -576,8 +579,8 @@ namespace MCGalaxy {
                         } else if (modelName.CaselessEq("-own")) {
                             modelName = Path.GetFileName(p.name);
                         } else {
-                            if (!CheckExtraPerm(p, data, 1)) { return; }
-                            if (!Formatter.ValidName(p, modelName, "model name")) { return; }
+                            if (!CheckExtraPerm(p, data, 1)) return;
+                            if (!Formatter.ValidName(p, modelName, "model name")) return;
                         }
 
                         if (args.Count >= 1) {
