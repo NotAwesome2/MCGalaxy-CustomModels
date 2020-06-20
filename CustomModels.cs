@@ -516,7 +516,7 @@ namespace MCGalaxy {
             public override void Help(Player p) {
                 p.Message("%T/CustomModel list %H- List all public custom models.");
                 p.Message("%T/CustomModel [-own/model name] upload [bbmodel url] %H- Upload a BlockBench file to use as your personal model.");
-                p.Message("%T/CustomModel [-own/model name] config [model] [field] [value] %H- Configures options on your personal model.");
+                p.Message("%T/CustomModel [-own/model name] config [field] [value] %H- Configures options on your personal model.");
                 p.Message("%HSee %T/Help CustomModel config fields %Hfor more details on [field]");
             }
 
