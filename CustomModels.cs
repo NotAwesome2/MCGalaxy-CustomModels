@@ -17,7 +17,7 @@ using Newtonsoft.Json.Serialization;
 namespace MCGalaxy {
     public sealed class CustomModelsPlugin : Plugin {
         public override string name { get { return "CustomModels"; } }
-        public override string MCGalaxy_Version { get { return "1.9.2.0"; } }
+        public override string MCGalaxy_Version { get { return "1.9.2.2"; } }
         public override string creator { get { return "SpiralP & Goodly"; } }
 
         //------------------------------------------------------------------bbmodel/ccmodel file loading
