@@ -992,8 +992,9 @@ namespace MCGalaxy {
                         fullbright = false,
                     };
 
-                    foreach (var attr in e.name.SplitComma()) {
-                        var animModifier = 1.0f;
+                    var name = e.name.Replace(" ", "");
+                    foreach (var attr in name.SplitComma()) {
+                        float animModifier = 1.0f;
                         var colonSplit = attr.Split(':');
                         if (colonSplit.Length >= 2) {
                             animModifier = float.Parse(colonSplit[1]);
@@ -1021,15 +1022,13 @@ namespace MCGalaxy {
                             part.anim = CustomModelAnim.SpinY;
                         } else if (attr.CaselessStarts("spinz")) {
                             part.anim = CustomModelAnim.SpinZ;
+                        } else if (attr.CaselessStarts("fullbright")) {
+                            part.fullbright = true;
                         } else if (attr.CaselessStarts("hand")) {
                             part.firstPersonArm = true;
                         }
 
                         part.animModifier = animModifier;
-                    }
-
-                    if (e.name.CaselessContains("fullbright")) {
-                        part.fullbright = true;
                     }
 
                     return part;
