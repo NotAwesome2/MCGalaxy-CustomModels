@@ -533,9 +533,21 @@ namespace MCGalaxy {
                                     foreach (var entry in ModifiableFields) {
                                         var fieldName = entry.Key;
                                         var chatType = entry.Value;
+
+                                        if (
+                                            chatType.op &&
+                                            !CommandExtraPerms.Find("CustomModel", 1).UsableBy(p.Rank)
+                                        ) {
+                                            continue;
+                                        }
+
                                         p.Message(
-                                            "%T{0} %H- {1} %S(Default {2})",
+                                            "%Tconfig {0} {1}",
                                             fieldName,
+                                            "[" + chatType.types.Join("] [") + "]"
+                                        );
+                                        p.Message(
+                                            "%H  {0} %S(Default %T{1}%S)",
                                             chatType.desc,
                                             chatType.get.Invoke(defaultModel)
                                         );
@@ -572,7 +584,7 @@ namespace MCGalaxy {
                             var subCommand = args.PopFront();
                             if (subCommand.CaselessEq("config")) {
                                 // /CustomModel [name] config
-                                Config(p, modelName, args);
+                                Config(p, data, modelName, args);
                                 return;
                             } else if (subCommand.CaselessEq("upload") && args.Count == 1) {
                                 // /CustomModel [name] upload [url]
@@ -597,31 +609,36 @@ namespace MCGalaxy {
                 public Func<CustomModel, string> get;
                 // (model, p, input) => bool
                 public Func<CustomModel, Player, string[], bool> set;
+                public bool op;
 
                 public ChatType(
                     string[] types,
                     string desc,
                     Func<CustomModel, string> get,
-                    Func<CustomModel, Player, string[], bool> set
+                    Func<CustomModel, Player, string[], bool> set,
+                    bool op = false
                 ) {
                     this.types = types;
                     this.desc = desc;
                     this.get = get;
                     this.set = set;
+                    this.op = op;
                 }
 
                 public ChatType(
                     string type,
                     string desc,
                     Func<CustomModel, string> get,
-                    Func<CustomModel, Player, string, bool> set
+                    Func<CustomModel, Player, string, bool> set,
+                    bool op = false
                 ) : this(
                         new string[] { type },
                         desc,
                         get,
                         (model, p, inputs) => {
                             return set(model, p, inputs[0]);
-                        }
+                        },
+                        op
                 ) { }
             }
 
@@ -639,16 +656,78 @@ namespace MCGalaxy {
                 {
                     "nameY",
                     new ChatType(
-                        "nameY",
+                        "height",
                         "Name text height",
                         (model) => "" + model.nameY * 16.0f,
                         (model, p, input) => GetRealPixels(p, input, "nameY", ref model.nameY)
                     )
                 },
                 {
+                    "eyeY",
+                    new ChatType(
+                        "height",
+                        "Eye position height",
+                        (model) => "" + model.eyeY * 16.0f,
+                        (model, p, input) => {
+                            return GetRealPixels(p, input, "eyeY", ref model.eyeY);
+                        },
+                        true
+                    )
+                },
+                {
+                    "collisionBounds",
+                    new ChatType(
+                        new string[] {"x", "y", "z"},
+                        "How big you are",
+                        (model) => {
+                            return string.Format(
+                                "({0}, {1}, {2})",
+                                model.collisionBounds.X * 16.0f,
+                                model.collisionBounds.Y * 16.0f,
+                                model.collisionBounds.Z * 16.0f
+                            );
+                        },
+                        (model, p, input) => {
+                            if (!GetRealPixels(p, input[0], "x", ref model.collisionBounds.X)) return false;
+                            if (!GetRealPixels(p, input[1], "y", ref model.collisionBounds.Y)) return false;
+                            if (!GetRealPixels(p, input[2], "z", ref model.collisionBounds.Z)) return false;
+                            return true;
+                        },
+                        true
+                    )
+                },
+                {
+                    "pickingBounds",
+                    new ChatType(
+                        new string[] {"minX", "minY", "minZ", "maxX", "maxY", "maxZ"},
+                        "Hitbox coordinates",
+                        (model) => {
+                            return string.Format(
+                                "from ({0}, {1}, {2}) to ({3}, {4}, {5})",
+                                model.pickingBoundsMin.X * 16.0f,
+                                model.pickingBoundsMin.Y * 16.0f,
+                                model.pickingBoundsMin.Z * 16.0f,
+                                model.pickingBoundsMax.X * 16.0f,
+                                model.pickingBoundsMax.Y * 16.0f,
+                                model.pickingBoundsMax.Z * 16.0f
+                            );
+                        },
+                        (model, p, input) => {
+                            if (!GetRealPixels(p, input[0], "minX", ref model.pickingBoundsMin.X)) return false;
+                            if (!GetRealPixels(p, input[1], "minY", ref model.pickingBoundsMin.Y)) return false;
+                            if (!GetRealPixels(p, input[2], "minZ", ref model.pickingBoundsMin.Z)) return false;
+                            if (!GetRealPixels(p, input[3], "maxX", ref model.pickingBoundsMax.X)) return false;
+                            if (!GetRealPixels(p, input[4], "maxY", ref model.pickingBoundsMax.Y)) return false;
+                            if (!GetRealPixels(p, input[5], "maxZ", ref model.pickingBoundsMax.Z)) return false;
+                            return true;
+                        },
+                        true
+                    )
+                },
+                {
                     "bobbing",
                     new ChatType(
-                        "bobbing",
+                        "bool",
                         "Third person bobbing animation",
                         (model) => model.bobbing.ToString(),
                         (model, p, input) => CommandParser.GetBool(p, input, ref model.bobbing)
@@ -657,7 +736,7 @@ namespace MCGalaxy {
                 {
                     "pushes",
                     new ChatType(
-                        "pushes",
+                        "bool",
                         "Push other players",
                         (model) => model.pushes.ToString(),
                         (model, p, input) => CommandParser.GetBool(p, input, ref model.pushes)
@@ -666,7 +745,7 @@ namespace MCGalaxy {
                 {
                     "usesHumanSkin",
                     new ChatType(
-                        "usesHumanSkin",
+                        "bool",
                         "Fall back to using entity name for skin",
                         (model) => model.usesHumanSkin.ToString(),
                         (model, p, input) => CommandParser.GetBool(p, input, ref model.usesHumanSkin)
@@ -675,7 +754,7 @@ namespace MCGalaxy {
                 {
                     "calcHumanAnims",
                     new ChatType(
-                        "calcHumanAnims",
+                        "bool",
                         "Use Crazy Arms",
                         (model) => model.calcHumanAnims.ToString(),
                         (model, p, input) => CommandParser.GetBool(p, input, ref model.calcHumanAnims)
@@ -683,9 +762,9 @@ namespace MCGalaxy {
                 },
             };
 
-            void Config(Player p, string modelName, List<string> args) {
+            void Config(Player p, CommandData data, string modelName, List<string> args) {
                 if (!StoredCustomModel.Exists(modelName)) {
-                    p.Message("%WCustom Model %S{0} %Wnot found", modelName);
+                    p.Message("%WCustom Model %S{0} %Wnot found!", modelName);
                     return;
                 }
 
@@ -695,6 +774,13 @@ namespace MCGalaxy {
                     foreach (var entry in ModifiableFields) {
                         var fieldName = entry.Key;
                         var chatType = entry.Value;
+                        if (
+                            chatType.op &&
+                            !CommandExtraPerms.Find("CustomModel", 1).UsableBy(p.Rank)
+                        ) {
+                            continue;
+                        }
+
                         p.Message(
                             "{0} = %T{1}",
                             fieldName,
@@ -711,7 +797,7 @@ namespace MCGalaxy {
                     var fieldName = args.PopFront();
                     if (!ModifiableFields.ContainsKey(fieldName)) {
                         p.Message(
-                            "%WNo such field %S{0}",
+                            "%WNo such field %S{0}!",
                             fieldName
                         );
                         return;
@@ -735,8 +821,11 @@ namespace MCGalaxy {
                                 fieldName
                             );
                         } else {
+                            if (chatType.op && !CheckExtraPerm(p, data, 1)) return;
+
                             if (chatType.set.Invoke(model, p, values)) {
                                 // field was set, update file!
+                                p.Message("%TField %S{0} %Tset!", fieldName);
 
                                 StoredCustomModel.FromCustomModel(model).WriteToFile(modelName);
                                 CheckUpdateAll(modelName);
@@ -772,7 +861,7 @@ namespace MCGalaxy {
 
                     CheckUpdateAll(modelName);
                     p.Message(
-                        "%TCustom Model %S{0}%T updated!",
+                        "%TCustom Model %S{0} %Tupdated!",
                         modelName
                     );
                 }
