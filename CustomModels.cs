@@ -265,7 +265,7 @@ namespace MCGalaxy {
                     continue;
                 }
 
-                StoredCustomModel.FromCustomModel(new CustomModel { }).WriteToFile(modelName);
+                StoredCustomModel.FromCustomModel(new CustomModel()).WriteToFile(modelName);
 
                 Logger.Log(
                     LogType.SystemActivity,
@@ -556,6 +556,9 @@ namespace MCGalaxy {
                 p.Message("%T/CustomModel [-own/model name] upload [bbmodel url]");
                 p.Message("%H  Upload a BlockBench file to use as your personal model.");
 
+                p.Message("%T/CustomModel [-own/model name] sit");
+                p.Message("%H  Toggle sitting.");
+
                 p.Message("%T/CustomModel [-own/model name] config [field] [value]");
                 p.Message("%H  Configures options on your personal model.");
                 p.Message("%H  See %T/Help CustomModel config fields %Hfor more details on [field]");
@@ -570,7 +573,7 @@ namespace MCGalaxy {
                             if (args.Count >= 1) {
                                 string subSubCommand = args.PopFront();
                                 if (subSubCommand.CaselessEq("fields")) {
-                                    var defaultModel = new CustomModel { };
+                                    var defaultStoredCustomModel = StoredCustomModel.FromCustomModel(new CustomModel());
                                     foreach (var entry in ModifiableFields) {
                                         var fieldName = entry.Key;
                                         var chatType = entry.Value;
@@ -590,7 +593,7 @@ namespace MCGalaxy {
                                         p.Message(
                                             "%H  {0} %S(Default %T{1}%S)",
                                             chatType.desc,
-                                            chatType.get.Invoke(defaultModel)
+                                            chatType.get.Invoke(defaultStoredCustomModel)
                                         );
                                     }
                                     return;
@@ -655,32 +658,24 @@ namespace MCGalaxy {
                 }
                 StoredCustomModel storedCustomModel = StoredCustomModel.ReadFromFile(modelName);
                 var oldValue = storedCustomModel.sitting;
-                var sitting = !oldValue;
-
-                CustomModel model = storedCustomModel.ToCustomModel(modelName);
-                StoredCustomModel.FromCustomModel(model, sitting).WriteToFile(modelName);
-
+                storedCustomModel.sitting = !oldValue;
+                storedCustomModel.WriteToFile(modelName);
                 CheckUpdateAll(modelName);
-                p.Message(
-                    "%TSet %S{0} %Tto %S{1}%T!",
-                    modelName,
-                    sitting ? "sitting" : "not sitting"
-                );
             }
 
             class ChatType {
                 public string[] types;
                 public string desc;
-                public Func<CustomModel, string> get;
+                public Func<StoredCustomModel, string> get;
                 // (model, p, input) => bool
-                public Func<CustomModel, Player, string[], bool> set;
+                public Func<StoredCustomModel, Player, string[], bool> set;
                 public bool op;
 
                 public ChatType(
                     string[] types,
                     string desc,
-                    Func<CustomModel, string> get,
-                    Func<CustomModel, Player, string[], bool> set,
+                    Func<StoredCustomModel, string> get,
+                    Func<StoredCustomModel, Player, string[], bool> set,
                     bool op = false
                 ) {
                     this.types = types;
@@ -693,8 +688,8 @@ namespace MCGalaxy {
                 public ChatType(
                     string type,
                     string desc,
-                    Func<CustomModel, string> get,
-                    Func<CustomModel, Player, string, bool> set,
+                    Func<StoredCustomModel, string> get,
+                    Func<StoredCustomModel, Player, string, bool> set,
                     bool op = false
                 ) : this(
                         new string[] { type },
@@ -825,6 +820,15 @@ namespace MCGalaxy {
                         (model, p, input) => CommandParser.GetBool(p, input, ref model.calcHumanAnims)
                     )
                 },
+                {
+                    "sitting",
+                    new ChatType(
+                        "bool",
+                        "Apply sitting transforms",
+                        (model) => model.sitting.ToString(),
+                        (model, p, input) => CommandParser.GetBool(p, input, ref model.sitting)
+                    )
+                },
             };
 
             void Config(Player p, CommandData data, string modelName, List<string> args) {
@@ -833,7 +837,7 @@ namespace MCGalaxy {
                     return;
                 }
 
-                CustomModel model = StoredCustomModel.ReadFromFile(modelName).ToCustomModel(modelName);
+                StoredCustomModel storedCustomModel = StoredCustomModel.ReadFromFile(modelName);
                 if (args.Count == 0) {
                     // /CustomModel [name] config
                     foreach (var entry in ModifiableFields) {
@@ -849,7 +853,7 @@ namespace MCGalaxy {
                         p.Message(
                             "{0} = %T{1}",
                             fieldName,
-                            chatType.get.Invoke(model)
+                            chatType.get.Invoke(storedCustomModel)
                         );
                     }
                     return;
@@ -874,7 +878,7 @@ namespace MCGalaxy {
                         p.Message(
                             "{0} = %T{1}",
                             fieldName,
-                            chatType.get.Invoke(model)
+                            chatType.get.Invoke(storedCustomModel)
                         );
                         return;
                     } else {
@@ -888,11 +892,11 @@ namespace MCGalaxy {
                         } else {
                             if (chatType.op && !CheckExtraPerm(p, data, 1)) return;
 
-                            if (chatType.set.Invoke(model, p, values)) {
+                            if (chatType.set.Invoke(storedCustomModel, p, values)) {
                                 // field was set, update file!
                                 p.Message("%TField %S{0} %Tset!", fieldName);
 
-                                StoredCustomModel.FromCustomModel(model).WriteToFile(modelName);
+                                storedCustomModel.WriteToFile(modelName);
                                 CheckUpdateAll(modelName);
                             }
                         }
@@ -961,7 +965,7 @@ namespace MCGalaxy {
 
                     if (!StoredCustomModel.Exists(modelName)) {
                         // create a default ccmodel file if doesn't exist
-                        StoredCustomModel.FromCustomModel(new CustomModel { }).WriteToFile(modelName);
+                        StoredCustomModel.FromCustomModel(new CustomModel()).WriteToFile(modelName);
                     }
 
                     CheckUpdateAll(modelName);
