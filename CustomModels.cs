@@ -34,6 +34,8 @@ namespace MCGalaxy {
         // don't store "parts" because we store those in the full .bbmodel file
         // don't store "u/vScale" because we take it from bbmodel's resolution.width
         class StoredCustomModel {
+            // TODO constructor with humanoid defaults
+
             public float nameY;
             public float eyeY;
             public Vec3F32 collisionBounds;
@@ -548,10 +550,15 @@ namespace MCGalaxy {
             }
 
             public override void Help(Player p) {
-                p.Message("%T/CustomModel list %H- List all public custom models.");
-                p.Message("%T/CustomModel [-own/model name] upload [bbmodel url] %H- Upload a BlockBench file to use as your personal model.");
-                p.Message("%T/CustomModel [-own/model name] config [field] [value] %H- Configures options on your personal model.");
-                p.Message("%HSee %T/Help CustomModel config fields %Hfor more details on [field]");
+                p.Message("%T/CustomModel list");
+                p.Message("%H  List all public custom models.");
+
+                p.Message("%T/CustomModel [-own/model name] upload [bbmodel url]");
+                p.Message("%H  Upload a BlockBench file to use as your personal model.");
+
+                p.Message("%T/CustomModel [-own/model name] config [field] [value]");
+                p.Message("%H  Configures options on your personal model.");
+                p.Message("%H  See %T/Help CustomModel config fields %Hfor more details on [field]");
             }
 
             public override void Help(Player p, string message) {
