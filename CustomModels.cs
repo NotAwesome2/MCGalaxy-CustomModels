@@ -43,8 +43,9 @@ namespace MCGalaxy {
             public bool pushes;
             public bool usesHumanSkin;
             public bool calcHumanAnims;
+            public bool sitting = false;
 
-            public static StoredCustomModel FromCustomModel(CustomModel model) {
+            public static StoredCustomModel FromCustomModel(CustomModel model, bool sitting = false) {
                 // convert to pixel units
                 var storedCustomModel = new StoredCustomModel {
                     nameY = model.nameY * 16.0f,
@@ -68,6 +69,7 @@ namespace MCGalaxy {
                     pushes = model.pushes,
                     usesHumanSkin = model.usesHumanSkin,
                     calcHumanAnims = model.calcHumanAnims,
+                    sitting = sitting,
                 };
                 return storedCustomModel;
             }
@@ -88,6 +90,34 @@ namespace MCGalaxy {
             public CustomModelPart[] ToCustomModelParts(string name) {
                 var blockBench = ParseBlockBench(name);
                 var parts = blockBench.ToCustomModelParts();
+
+                if (this.sitting) {
+                    CustomModelPart leg = null;
+                    foreach (var part in parts) {
+                        if (
+                            part.anim == CustomModelAnim.LeftLeg ||
+                            part.anim == CustomModelAnim.RightLeg
+                        ) {
+                            // rotate legs to point forward, pointed a little outwards
+                            leg = part;
+                            part.rotation.X = 90.0f;
+                            part.rotation.Y = part.anim == CustomModelAnim.LeftLeg ? 5.0f : -5.0f;
+                            part.anim = CustomModelAnim.None;
+                        }
+                    }
+
+                    if (leg != null) {
+                        var legHeight = leg.max.Y - leg.min.Y;
+                        var legForwardWidth = leg.max.Z - leg.min.Z;
+                        // lower all parts by leg's Y height, up by the leg's width
+                        foreach (var part in parts) {
+                            part.min.Y -= legHeight - legForwardWidth / 2.0f;
+                            part.max.Y -= legHeight - legForwardWidth / 2.0f;
+                            part.rotationOrigin.Y -= legHeight - legForwardWidth / 2.0f;
+                        }
+                    }
+                }
+
                 return parts;
             }
 
@@ -599,12 +629,36 @@ namespace MCGalaxy {
                                 // /MyCustomModel list
                                 List(p);
                                 return;
+                            } else if (subCommand.CaselessEq("sit")) {
+                                // /CustomModel [name] sit
+                                Sit(p, modelName);
+                                return;
                             }
                         }
                     }
                 }
 
                 Help(p);
+            }
+
+            void Sit(Player p, string modelName) {
+                if (!StoredCustomModel.Exists(modelName)) {
+                    p.Message("%WCustom Model %S{0} %Wnot found!", modelName);
+                    return;
+                }
+                StoredCustomModel storedCustomModel = StoredCustomModel.ReadFromFile(modelName);
+                var oldValue = storedCustomModel.sitting;
+                var sitting = !oldValue;
+
+                CustomModel model = storedCustomModel.ToCustomModel(modelName);
+                StoredCustomModel.FromCustomModel(model, sitting).WriteToFile(modelName);
+
+                CheckUpdateAll(modelName);
+                p.Message(
+                    "%TSet %S{0} %Tto %S{1}%T!",
+                    modelName,
+                    sitting ? "sitting" : "not sitting"
+                );
             }
 
             class ChatType {
