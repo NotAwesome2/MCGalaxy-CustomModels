@@ -116,6 +116,11 @@ namespace MCGalaxy {
                             part.min.Y -= legHeight - legForwardWidth / 2.0f;
                             part.max.Y -= legHeight - legForwardWidth / 2.0f;
                             part.rotationOrigin.Y -= legHeight - legForwardWidth / 2.0f;
+
+                            if (part.firstPersonArm) {
+                                // remove first person arm because offset changed
+                                part.firstPersonArm = false;
+                            }
                         }
                     }
                 }
@@ -660,7 +665,13 @@ namespace MCGalaxy {
                 var oldValue = storedCustomModel.sitting;
                 storedCustomModel.sitting = !oldValue;
                 storedCustomModel.WriteToFile(modelName);
+
                 CheckUpdateAll(modelName);
+                p.Message(
+                   "%TSet %S{0} %Tto %S{1}%T!",
+                   modelName,
+                   storedCustomModel.sitting ? "sitting" : "not sitting"
+               );
             }
 
             class ChatType {
