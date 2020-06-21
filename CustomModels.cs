@@ -500,6 +500,7 @@ namespace MCGalaxy {
             public override string shortcut { get { return "cm"; } }
             public override string type { get { return CommandTypes.Other; } }
             public override bool MessageBlockRestricted { get { return true; } }
+            public override LevelPermission defaultRank { get { return LevelPermission.AdvBuilder; } }
             public override CommandPerm[] ExtraPerms {
                 get {
                     return new[] {
