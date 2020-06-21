@@ -837,7 +837,29 @@ namespace MCGalaxy {
                     }
                 }
             }
+            //measured in pixels where 16 pixels = 1 block's length
+            public const float maxWidth = 16;
+            public const float maxHeight = 32;
+            public const float graceLength = 8; //how far you can extend past max width/height
 
+            static bool SizeAllowed(Vec3F32 boxCorner) {
+                //convert to block-unit to match boxCorner
+                const float maxWidthB = maxWidth / 16f;
+                const float maxHeightB = maxHeight / 16f;
+                const float graceLengthB = graceLength / 16f;
+                if (
+                    boxCorner.Y < -graceLengthB ||
+                    boxCorner.Y > maxHeightB + graceLengthB ||
+
+                    boxCorner.X < -((maxWidthB / 2) + graceLengthB) ||
+                    boxCorner.X > (maxWidthB / 2) + graceLengthB ||
+                    boxCorner.Z < -((maxWidthB / 2) + graceLengthB) ||
+                    boxCorner.Z > (maxWidthB / 2) + graceLengthB
+                ) {
+                    return false;
+                }
+                return true;
+            }
             void Upload(Player p, string modelName, string url) {
                 var bytes = HttpUtil.DownloadData(url, p);
                 if (bytes != null) {
@@ -855,6 +877,24 @@ namespace MCGalaxy {
                         return;
                     }
 
+                    //only do size check if they can't upload global models
+                    if (!CommandExtraPerms.Find("CustomModel", 1).UsableBy(p.Rank)) {
+                        for (int i = 0; i < parts.Length; i++) {
+                            if (!SizeAllowed(parts[i].min) || !SizeAllowed(parts[i].max)) {
+                                p.Message(
+                                    "%WYou may not have any cubes in your model that stick out taller than %b{0}%W pixels vertically or wider than %b{1}%W pixels horizontally.",
+                                    maxHeight + graceLength,
+                                    maxWidth / 2 + graceLength
+                                );
+                                p.Message(
+                                    "%SPlease make the %b{0} cube in your list %Scloser to the center of the model grid%S.",
+                                    ListicleNumber(i + 1)
+                                );
+                                return;
+                            }
+                        }
+                    }
+
                     StoredCustomModel.WriteBBFile(modelName, json);
 
                     if (!StoredCustomModel.Exists(modelName)) {
@@ -868,6 +908,27 @@ namespace MCGalaxy {
                         modelName
                     );
                 }
+            }
+
+            //shrug
+            static string ListicleNumber(int n) {
+                if (n > 3 && n < 21) { return n + "th"; }
+                string suffix;
+                switch (n % 10) {
+                    case 1:
+                        suffix = "st";
+                        break;
+                    case 2:
+                        suffix = "nd";
+                        break;
+                    case 3:
+                        suffix = "rd";
+                        break;
+                    default:
+                        suffix = "th";
+                        break;
+                }
+                return n + suffix;
             }
 
             void List(Player p) {
