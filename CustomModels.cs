@@ -713,24 +713,14 @@ namespace MCGalaxy {
                 ) { }
             }
 
-            static bool GetRealPixels(Player p, string input, string argName, ref float output) {
-                float tmp = 0.0f;
-                if (CommandParser.GetReal(p, input, argName, ref tmp)) {
-                    output = tmp / 16.0f;
-                    return true;
-                } else {
-                    return false;
-                }
-            }
-
             static Dictionary<string, ChatType> ModifiableFields = new Dictionary<string, ChatType>(StringComparer.OrdinalIgnoreCase) {
                 {
                     "nameY",
                     new ChatType(
                         "height",
                         "Name text height",
-                        (model) => "" + model.nameY * 16.0f,
-                        (model, p, input) => GetRealPixels(p, input, "nameY", ref model.nameY)
+                        (model) => "" + model.nameY,
+                        (model, p, input) => CommandParser.GetReal(p, input, "nameY", ref model.nameY)
                     )
                 },
                 {
@@ -738,9 +728,9 @@ namespace MCGalaxy {
                     new ChatType(
                         "height",
                         "Eye position height",
-                        (model) => "" + model.eyeY * 16.0f,
+                        (model) => "" + model.eyeY,
                         (model, p, input) => {
-                            return GetRealPixels(p, input, "eyeY", ref model.eyeY);
+                            return CommandParser.GetReal(p, input, "eyeY", ref model.eyeY);
                         },
                         true
                     )
@@ -753,15 +743,15 @@ namespace MCGalaxy {
                         (model) => {
                             return string.Format(
                                 "({0}, {1}, {2})",
-                                model.collisionBounds.X * 16.0f,
-                                model.collisionBounds.Y * 16.0f,
-                                model.collisionBounds.Z * 16.0f
+                                model.collisionBounds.X,
+                                model.collisionBounds.Y,
+                                model.collisionBounds.Z
                             );
                         },
                         (model, p, input) => {
-                            if (!GetRealPixels(p, input[0], "x", ref model.collisionBounds.X)) return false;
-                            if (!GetRealPixels(p, input[1], "y", ref model.collisionBounds.Y)) return false;
-                            if (!GetRealPixels(p, input[2], "z", ref model.collisionBounds.Z)) return false;
+                            if (!CommandParser.GetReal(p, input[0], "x", ref model.collisionBounds.X)) return false;
+                            if (!CommandParser.GetReal(p, input[1], "y", ref model.collisionBounds.Y)) return false;
+                            if (!CommandParser.GetReal(p, input[2], "z", ref model.collisionBounds.Z)) return false;
                             return true;
                         },
                         true
@@ -775,21 +765,21 @@ namespace MCGalaxy {
                         (model) => {
                             return string.Format(
                                 "from ({0}, {1}, {2}) to ({3}, {4}, {5})",
-                                model.pickingBoundsMin.X * 16.0f,
-                                model.pickingBoundsMin.Y * 16.0f,
-                                model.pickingBoundsMin.Z * 16.0f,
-                                model.pickingBoundsMax.X * 16.0f,
-                                model.pickingBoundsMax.Y * 16.0f,
-                                model.pickingBoundsMax.Z * 16.0f
+                                model.pickingBoundsMin.X,
+                                model.pickingBoundsMin.Y,
+                                model.pickingBoundsMin.Z,
+                                model.pickingBoundsMax.X,
+                                model.pickingBoundsMax.Y,
+                                model.pickingBoundsMax.Z
                             );
                         },
                         (model, p, input) => {
-                            if (!GetRealPixels(p, input[0], "minX", ref model.pickingBoundsMin.X)) return false;
-                            if (!GetRealPixels(p, input[1], "minY", ref model.pickingBoundsMin.Y)) return false;
-                            if (!GetRealPixels(p, input[2], "minZ", ref model.pickingBoundsMin.Z)) return false;
-                            if (!GetRealPixels(p, input[3], "maxX", ref model.pickingBoundsMax.X)) return false;
-                            if (!GetRealPixels(p, input[4], "maxY", ref model.pickingBoundsMax.Y)) return false;
-                            if (!GetRealPixels(p, input[5], "maxZ", ref model.pickingBoundsMax.Z)) return false;
+                            if (!CommandParser.GetReal(p, input[0], "minX", ref model.pickingBoundsMin.X)) return false;
+                            if (!CommandParser.GetReal(p, input[1], "minY", ref model.pickingBoundsMin.Y)) return false;
+                            if (!CommandParser.GetReal(p, input[2], "minZ", ref model.pickingBoundsMin.Z)) return false;
+                            if (!CommandParser.GetReal(p, input[3], "maxX", ref model.pickingBoundsMax.X)) return false;
+                            if (!CommandParser.GetReal(p, input[4], "maxY", ref model.pickingBoundsMax.Y)) return false;
+                            if (!CommandParser.GetReal(p, input[5], "maxZ", ref model.pickingBoundsMax.Z)) return false;
                             return true;
                         },
                         true
