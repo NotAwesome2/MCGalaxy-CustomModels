@@ -16,7 +16,6 @@ using MCGalaxy.Maths;
 using MCGalaxy.Network;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Newtonsoft.Json.Serialization;
 
 namespace MCGalaxy {
     public sealed class CustomModelsPlugin : Plugin {
@@ -27,19 +26,15 @@ namespace MCGalaxy {
         //------------------------------------------------------------------bbmodel/ccmodel file loading
 
         // Path.GetExtension includes the period "."
-        const string BlockBenchExt = ".bbmodel";
+        const string BBModelExt = ".bbmodel";
         const string CCModelExt = ".ccmodel";
-        const string CCdirectory = "plugins/models/";
-        const string BBdirectory = "plugins/models/bbmodels/";
-        const string PersonalCCdirectory = "plugins/personal_models/";
-        const string PersonalBBdirectory = "plugins/personal_models/bbmodels/";
+        const string PublicModelsDirectory = "plugins/models/";
+        const string PersonalModelsDirectory = "plugins/personal_models/";
 
         // don't store "name" because we will use filename for model name
         // don't store "parts" because we store those in the full .bbmodel file
         // don't store "u/vScale" because we take it from bbmodel's resolution.width
         class StoredCustomModel {
-            // TODO constructor with humanoid defaults
-
             public float nameY;
             public float eyeY;
             public Vec3F32 collisionBounds;
@@ -187,24 +182,27 @@ namespace MCGalaxy {
                 return File.Exists(path);
             }
 
-            public static string GetCCPath(string name) {
-                string path;
-                if (name.EndsWith("+")) {
-                    path = PersonalCCdirectory + Path.GetFileName(name.ToLower()) + CCModelExt;
+            public static string GetFolder(string name) {
+                if (name.Contains("+")) {
+                    string[] split = name.Split('+');
+                    string playerName = split[0];
+                    string folderPath = PersonalModelsDirectory + Path.GetFileName(playerName.ToLower() + "+") + "/";
+                    if (!Directory.Exists(folderPath)) {
+                        Directory.CreateDirectory(folderPath);
+                    }
+                    return folderPath;
                 } else {
-                    path = CCdirectory + Path.GetFileName(name.ToLower()) + CCModelExt;
+                    return PublicModelsDirectory;
                 }
-                return path;
+            }
+
+            public static string GetCCPath(string name) {
+                return GetFolder(name) + Path.GetFileName(name.ToLower()) + CCModelExt;
+
             }
 
             public static string GetBBPath(string name) {
-                string path;
-                if (name.EndsWith("+")) {
-                    path = PersonalBBdirectory + Path.GetFileName(name.ToLower()) + BlockBenchExt;
-                } else {
-                    path = BBdirectory + Path.GetFileName(name.ToLower()) + BlockBenchExt;
-                }
-                return path;
+                return GetFolder(name) + Path.GetFileName(name.ToLower()) + BBModelExt;
             }
 
             public static void WriteBBFile(string name, string json) {
@@ -218,70 +216,96 @@ namespace MCGalaxy {
 
         // returns how many models
         static int CreateMissingCCModels(bool isPersonal) {
-            string ccPath;
-            string bbPath;
+            int count = 0;
+
             if (isPersonal) {
-                ccPath = PersonalCCdirectory;
-                bbPath = PersonalBBdirectory;
+                foreach (var entry in new DirectoryInfo(PersonalModelsDirectory).GetDirectories()) {
+                    string folderName = entry.Name;
+                    if (folderName != folderName.ToLower()) {
+                        RenameDirectory(PersonalModelsDirectory, folderName, folderName.ToLower());
+                    }
+                    count += CheckFolder(PersonalModelsDirectory + folderName + "/");
+                }
             } else {
-                ccPath = CCdirectory;
-                bbPath = BBdirectory;
+                count += CheckFolder(PublicModelsDirectory);
             }
 
+            return count;
+        }
+
+        static void RenameDirectory(string folderPath, string currentFolderName, string folderName) {
+            string fromPath = folderPath + currentFolderName;
+            string toPath = folderPath + folderName;
+            Logger.Log(
+                LogType.SystemActivity,
+                "CustomModels: Renaming {0} to {1}",
+                fromPath,
+                toPath
+            );
+            Directory.Move(
+                fromPath,
+                folderPath + "temp"
+            );
+            Directory.Move(
+                folderPath + "temp",
+                toPath
+            );
+        }
+
+        static void RenameFile(string folderPath, string currentFileName, string fileName) {
+            string fromPath = folderPath + currentFileName;
+            string toPath = folderPath + fileName;
+            Logger.Log(
+                LogType.SystemActivity,
+                "CustomModels: Renaming {0} to {1}",
+                fromPath,
+                toPath
+            );
+            File.Move(
+                fromPath,
+                folderPath + "temp"
+            );
+            File.Move(
+                folderPath + "temp",
+                toPath
+            );
+        }
+
+        static int CheckFolder(string folderPath) {
             // make sure all cc files are lowercased
-            foreach (var entry in new DirectoryInfo(ccPath).GetFiles()) {
+            foreach (var entry in new DirectoryInfo(folderPath).GetFiles()) {
                 string fileName = entry.Name;
                 if (fileName != fileName.ToLower()) {
-                    Logger.Log(
-                        LogType.SystemActivity,
-                        "CustomModels: Renaming {0} to {1}",
-                        fileName,
-                        fileName.ToLower()
-                    );
-                    File.Move(
-                        ccPath + fileName,
-                        ccPath + fileName.ToLower()
-                    );
+                    RenameFile(folderPath, fileName, fileName.ToLower());
                 }
             }
 
             int count = 0;
-            foreach (var entry in new DirectoryInfo(bbPath).GetFiles()) {
+            foreach (var entry in new DirectoryInfo(folderPath).GetFiles()) {
                 string fileName = entry.Name;
                 if (fileName != fileName.ToLower()) {
-                    Logger.Log(
-                        LogType.SystemActivity,
-                        "CustomModels: Renaming {0} to {1}",
-                        fileName,
-                        fileName.ToLower()
-                    );
-                    File.Move(
-                        bbPath + fileName,
-                        bbPath + fileName.ToLower()
-                    );
+                    RenameFile(folderPath, fileName, fileName.ToLower());
                     fileName = fileName.ToLower();
                 }
 
                 string modelName = Path.GetFileNameWithoutExtension(fileName);
                 string extension = Path.GetExtension(fileName);
 
-                if (!extension.CaselessEq(BlockBenchExt)) {
+                if (!extension.CaselessEq(BBModelExt)) {
                     continue;
                 }
 
                 count += 1;
-                if (StoredCustomModel.Exists(modelName)) {
-                    continue;
+                if (!StoredCustomModel.Exists(modelName)) {
+                    StoredCustomModel.FromCustomModel(new CustomModel()).WriteToFile(modelName);
+
+                    Logger.Log(
+                        LogType.SystemActivity,
+                        "CustomModels: Created a new default template \"{0}\" in {1}",
+                        modelName + CCModelExt,
+                        folderPath
+                    );
                 }
-
-                StoredCustomModel.FromCustomModel(new CustomModel()).WriteToFile(modelName);
-
-                Logger.Log(
-                    LogType.SystemActivity,
-                    "CustomModels: Created a new default template \"{0}\" in {1}.",
-                    modelName + CCModelExt,
-                    ccPath
-                );
             }
 
             return count;
@@ -332,7 +356,7 @@ namespace MCGalaxy {
             modelNameToId.Remove(name);
         }
 
-        //------------------------------------------------------------------plugin interface
+        //------------------------------------------------------------------ plugin interface
 
         CmdCustomModel command = null;
         public override void Load(bool startup) {
@@ -356,11 +380,8 @@ namespace MCGalaxy {
 
             OnBeforeChangeModelEvent.Register(OnBeforeChangeModel, Priority.Low);
 
-            if (!Directory.Exists(CCdirectory)) Directory.CreateDirectory(CCdirectory);
-            if (!Directory.Exists(BBdirectory)) Directory.CreateDirectory(BBdirectory);
-            if (!Directory.Exists(PersonalCCdirectory)) Directory.CreateDirectory(PersonalCCdirectory);
-            if (!Directory.Exists(PersonalBBdirectory)) Directory.CreateDirectory(PersonalBBdirectory);
-
+            if (!Directory.Exists(PublicModelsDirectory)) Directory.CreateDirectory(PublicModelsDirectory);
+            if (!Directory.Exists(PersonalModelsDirectory)) Directory.CreateDirectory(PersonalModelsDirectory);
 
             int numModels = CreateMissingCCModels(false);
             int numPersonalModels = CreateMissingCCModels(true);
@@ -537,7 +558,7 @@ namespace MCGalaxy {
         }
 
 
-        //------------------------------------------------------------------ skins
+        //------------------------------------------------------------------ skin parsing
 
         // 32x64 (Steve) 64x64 (SteveLayers) 64x64 slim-arm (Alex)
         public enum SkinType { Steve, SteveLayers, Alex };
@@ -634,7 +655,7 @@ namespace MCGalaxy {
             thread.Start();
         }
 
-        //------------------------------------------------------------------commands
+        //------------------------------------------------------------------ commands
 
         class CmdCustomModel : Command2 {
             public override string name { get { return "CustomModel"; } }
@@ -727,11 +748,12 @@ namespace MCGalaxy {
                             List(p);
                             return;
                         } else if (modelName.CaselessEq("-own")) {
-                            modelName = Path.GetFileName(p.name);
+                            modelName = p.name;
                         } else {
                             if (!CheckExtraPerm(p, data, 1)) return;
                             if (!Formatter.ValidName(p, modelName, "model name")) return;
                         }
+                        modelName = Path.GetFileName(modelName);
 
                         if (args.Count >= 1) {
                             var subCommand = args.PopFront();
@@ -1104,7 +1126,7 @@ namespace MCGalaxy {
 
             void List(Player p) {
                 var modelNames = new List<string>();
-                foreach (var entry in new DirectoryInfo(CCdirectory).GetFiles()) {
+                foreach (var entry in new DirectoryInfo(PublicModelsDirectory).GetFiles()) {
                     string fileName = entry.Name;
                     if (Path.GetExtension(fileName).CaselessEq(CCModelExt)) {
                         string name = Path.GetFileNameWithoutExtension(fileName);
