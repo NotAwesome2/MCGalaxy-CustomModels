@@ -1,11 +1,15 @@
 //reference System.dll
 //reference System.Core.dll
+//reference System.Drawing.dll
 //reference Newtonsoft.Json.dll
 
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Threading;
 using MCGalaxy.Commands;
 using MCGalaxy.Events.PlayerEvents;
 using MCGalaxy.Maths;
@@ -514,6 +518,8 @@ namespace MCGalaxy {
         }
 
         static void OnBeforeChangeModel(Player p, byte entityID, string modelName) {
+            // UpdateSkinType(p);
+
             try {
                 // use CheckAddRemove because we also want to remove the previous model,
                 // if no one else is using it
@@ -528,6 +534,104 @@ namespace MCGalaxy {
                     e.StackTrace
                 );
             }
+        }
+
+
+        //------------------------------------------------------------------ skins
+
+        // 32x64 (Steve) 64x64 (SteveLayers) 64x64 slim-arm (Alex)
+        public enum SkinType { Steve, SteveLayers, Alex };
+        // ruthlessly copy-paste-edited from ClassiCube Utils.c (thanks UnknownShadow200)
+        static bool IsAllColor(Color solid, Bitmap bmp, int x1, int y1, int width, int height, Player p) {
+            int x, y;
+            for (y = y1; y < y1 + height; y++) {
+                for (x = x1; x < x1 + width; x++) {
+                    //p.Message("x is %b{0}%S, y is %b{1}%S.", x, y);
+                    Color col = bmp.GetPixel(x, y);
+                    if (!col.Equals(solid)) {
+                        //p.Message("It's not {0}, it's {1}!", solid, col);
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+        // ruthlessly copy-paste-edited from ClassiCube Utils.c (thanks UnknownShadow200)
+        static SkinType GetSkinType(Bitmap bmp, Player p) {
+            Color col;
+            int scale;
+            if (bmp.Width == bmp.Height * 2) return SkinType.Steve;
+            if (bmp.Width != bmp.Height) return SkinType.Steve;
+
+            scale = bmp.Width / 64;
+            // Minecraft alex skins have this particular pixel with alpha of 0
+            col = bmp.GetPixel(54 * scale, 20 * scale);
+            if (col.A < 128) { return SkinType.Alex; }
+            Color black = Color.FromArgb(0, 0, 0);
+            return IsAllColor(black, bmp, 54 * scale, 20 * scale, 2 * scale, 12 * scale, p)
+                && IsAllColor(black, bmp, 50 * scale, 16 * scale, 2 * scale, 4 * scale, p) ? SkinType.Alex : SkinType.SteveLayers;
+        }
+
+        static Bitmap DecodeImage(byte[] data) {
+            Bitmap bmp = null;
+            try {
+                bmp = new Bitmap(new MemoryStream(data));
+                int width = bmp.Width;
+                // sometimes Mono will return an invalid bitmap instance that throws ArgumentNullException,
+                // so we make sure to check for that here rather than later.
+                return bmp;
+            } catch (Exception ex) {
+                Logger.LogError("Error reading bitmap", ex);
+                if (bmp != null) bmp.Dispose();
+                return null;
+            }
+        }
+        static Bitmap DownloadSkin(Player p) {
+            string url = p.SkinName;
+            Uri uri;
+            if (!Uri.TryCreate(url, UriKind.Absolute, out uri)) {
+                url = "http://www.classicube.net/static/skins/" + p.truename + ".png";
+                if (!Uri.TryCreate(url, UriKind.Absolute, out uri)) {
+                    return null;
+                }
+            }
+
+            byte[] data = null;
+            try {
+                using (WebClient client = HttpUtil.CreateWebClient()) {
+                    p.Message("Downloading file from: &f" + url);
+                    data = client.DownloadData(uri);
+                }
+                p.Message("Finished downloading.");
+            } catch (Exception ex) {
+                Logger.LogError("Error downloading", ex);
+                return null;
+            }
+
+            return DecodeImage(data);
+        }
+
+        static void UpdateSkinTypeCore(Player p) {
+            using (Bitmap skin = DownloadSkin(p)) {
+                if (skin != null) {
+                    p.Message("Skintype is %b{0}%S!", GetSkinType(skin, p));
+                } else {
+                    p.Message("Could not get your skin, assuming SkinType.Steve!");
+                }
+            }
+        }
+
+        static void UpdateSkinType(Player p) {
+            Thread thread = new Thread(() => {
+                try {
+                    UpdateSkinTypeCore(p);
+                } catch (Exception ex) {
+                    // Do not want it taking down the whole server if error occurs
+                    Logger.LogError("Error figuring out skin type", ex);
+                }
+            });
+            thread.Name = "CustomModels_UpdatePlayerSkinType";
+            thread.Start();
         }
 
         //------------------------------------------------------------------commands
