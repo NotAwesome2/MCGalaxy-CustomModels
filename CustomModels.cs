@@ -182,11 +182,16 @@ namespace MCGalaxy {
                 return File.Exists(path);
             }
 
-            public static string GetFolder(string name) {
+            public static string GetPlayerName(string name) {
+                string[] split = name.Split('+');
+                string playerName = split[0];
+                return playerName + "+";
+            }
+
+            public static string GetFolderPath(string name) {
                 if (name.Contains("+")) {
-                    string[] split = name.Split('+');
-                    string playerName = split[0];
-                    string folderPath = PersonalModelsDirectory + Path.GetFileName(playerName.ToLower() + "+") + "/";
+                    string playerName = GetPlayerName(name);
+                    string folderPath = PersonalModelsDirectory + Path.GetFileName(playerName.ToLower()) + "/";
                     if (!Directory.Exists(folderPath)) {
                         Directory.CreateDirectory(folderPath);
                     }
@@ -197,12 +202,12 @@ namespace MCGalaxy {
             }
 
             public static string GetCCPath(string name) {
-                return GetFolder(name) + Path.GetFileName(name.ToLower()) + CCModelExt;
+                return GetFolderPath(name) + Path.GetFileName(name.ToLower()) + CCModelExt;
 
             }
 
             public static string GetBBPath(string name) {
-                return GetFolder(name) + Path.GetFileName(name.ToLower()) + BBModelExt;
+                return GetFolderPath(name) + Path.GetFileName(name.ToLower()) + BBModelExt;
             }
 
             public static void WriteBBFile(string name, string json) {
@@ -745,13 +750,16 @@ namespace MCGalaxy {
                         string modelName = args.PopFront();
                         if (modelName.CaselessEq("list")) {
                             // /CustomModel list
-                            List(p);
+                            List(p, null);
                             return;
                         } else if (modelName.CaselessEq("-own")) {
                             modelName = p.name;
                         } else {
-                            if (!CheckExtraPerm(p, data, 1)) return;
-                            if (!Formatter.ValidName(p, modelName, "model name")) return;
+                            // allow manually targetting self
+                            if (!modelName.CaselessEq(p.name)) {
+                                if (!CheckExtraPerm(p, data, 1)) return;
+                                if (!Formatter.ValidName(p, modelName, "model name")) return;
+                            }
                         }
                         modelName = Path.GetFileName(modelName);
 
@@ -768,7 +776,7 @@ namespace MCGalaxy {
                                 return;
                             } else if (subCommand.CaselessEq("list")) {
                                 // /MyCustomModel list
-                                List(p);
+                                List(p, StoredCustomModel.GetPlayerName(modelName));
                                 return;
                             } else if (subCommand.CaselessEq("sit")) {
                                 // /CustomModel [name] sit
@@ -1124,16 +1132,23 @@ namespace MCGalaxy {
                 return n + suffix;
             }
 
-            void List(Player p) {
+            void List(Player p, string playerName = null) {
+                var folderPath = playerName == null
+                    ? PublicModelsDirectory
+                    : StoredCustomModel.GetFolderPath(playerName);
                 var modelNames = new List<string>();
-                foreach (var entry in new DirectoryInfo(PublicModelsDirectory).GetFiles()) {
+                foreach (var entry in new DirectoryInfo(folderPath).GetFiles()) {
                     string fileName = entry.Name;
                     if (Path.GetExtension(fileName).CaselessEq(CCModelExt)) {
                         string name = Path.GetFileNameWithoutExtension(fileName);
                         modelNames.Add(name);
                     }
                 }
-                p.Message("%SPublic Custom Models: %T{0}", modelNames.Join("%S, %T"));
+                p.Message(
+                    "{0} Custom Models: %T{1}",
+                    playerName == null ? "%SPublic" : "%T" + playerName + "%S's",
+                    modelNames.Join("%S, %T")
+                );
             }
         }
 
