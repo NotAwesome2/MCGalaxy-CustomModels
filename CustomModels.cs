@@ -183,9 +183,13 @@ namespace MCGalaxy {
             }
 
             public static string GetPlayerName(string name) {
-                string[] split = name.Split('+');
-                string playerName = split[0];
-                return playerName + "+";
+                if (name.Contains("+")) {
+                    string[] split = name.Split('+');
+                    string playerName = split[0];
+                    return playerName + "+";
+                } else {
+                    return null;
+                }
             }
 
             public static string GetFolderPath(string name) {
@@ -755,11 +759,11 @@ namespace MCGalaxy {
                         } else if (modelName.CaselessEq("-own")) {
                             modelName = p.name;
                         } else {
-                            // allow manually targetting self
-                            if (!modelName.CaselessEq(p.name)) {
-                                if (!CheckExtraPerm(p, data, 1)) return;
-                                if (!Formatter.ValidName(p, modelName, "model name")) return;
-                            }
+                            string maybePlayerName = StoredCustomModel.GetPlayerName(modelName);
+                            bool targettingSelf = maybePlayerName != null && maybePlayerName.CaselessEq(p.name);
+
+                            if (!targettingSelf && !CheckExtraPerm(p, data, 1)) return;
+                            if (!ValidModelName(p, modelName)) return;
                         }
                         modelName = Path.GetFileName(modelName);
 
@@ -788,6 +792,17 @@ namespace MCGalaxy {
                 }
 
                 Help(p);
+            }
+
+            public static bool ValidModelName(Player p, string name) {
+                if (Formatter.ValidName(p, name, "model")) {
+                    if (name.Count(c => c == '+') <= 1) {
+                        return true;
+                    } else {
+                        p.Message("\"{0}\" is not a valid model name.", name);
+                    }
+                }
+                return false;
             }
 
             void Sit(Player p, string modelName) {
