@@ -782,8 +782,11 @@ namespace MCGalaxy {
                 p.Message("%T/CustomModel [-own/model name] upload [bbmodel url]");
                 p.Message("%H  Upload a BlockBench file to use as your personal model.");
 
+                p.Message("%T/CustomModel [-own/model name] delete");
+                p.Message("%H  Delete a model.");
+
                 p.Message("%T/CustomModel sit");
-                p.Message("%H  Toggle sitting.");
+                p.Message("%H  Toggle sitting on your worn custom model.");
 
                 p.Message("%T/CustomModel [-own/model name] config [field] [value]");
                 p.Message("%H  Configures options on your personal model.");
@@ -842,7 +845,7 @@ namespace MCGalaxy {
                             return;
                         } else if (modelName.CaselessEq("sit")) {
                             // /CustomModel sit
-                            Sit(p);
+                            Sit(p, data);
                             return;
                         } else if (modelName.CaselessEq("-own")) {
                             modelName = p.name;
@@ -878,7 +881,7 @@ namespace MCGalaxy {
                                 return;
                             } else if (subCommand.CaselessEq("sit")) {
                                 // /MyCustomModel sit
-                                Sit(p);
+                                Sit(p, data);
                                 return;
                             }
                         }
@@ -899,7 +902,7 @@ namespace MCGalaxy {
                 return false;
             }
 
-            void Sit(Player p) {
+            void Sit(Player p, CommandData data) {
                 var storedModel = new StoredCustomModel(p.Model);
                 if (!storedModel.Exists()) {
                     p.Message("%WYour current model isn't a Custom Model!");
@@ -912,12 +915,7 @@ namespace MCGalaxy {
                     storedModel.AddModifier("sit");
                 }
 
-                Entities.UpdateModel(p, storedModel.fullName);
-
-                p.Message(
-                   "%SNow %T{0}%S!",
-                   storedModel.modifiers.Contains("sit") ? "sitting" : "standing"
-               );
+                p.HandleCommand("XModel", storedModel.fullName, data);
             }
 
             class ModelField {
