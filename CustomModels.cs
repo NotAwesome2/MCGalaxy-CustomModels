@@ -244,6 +244,7 @@ namespace MCGalaxy {
             public void WriteToFile() {
                 string path = GetCCPath();
                 string storedJsonModel = JsonConvert.SerializeObject(this, Formatting.Indented, jsonSettings);
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
                 File.WriteAllText(path, storedJsonModel);
             }
 
@@ -280,11 +281,7 @@ namespace MCGalaxy {
             public static string GetFolderPath(string name) {
                 string maybePlayerName = GetPlayerName(name);
                 if (maybePlayerName != null) {
-                    string folderPath = PersonalModelsDirectory + Path.GetFileName(maybePlayerName.ToLower()) + "/";
-                    if (!Directory.Exists(folderPath)) {
-                        Directory.CreateDirectory(folderPath);
-                    }
-                    return folderPath;
+                    return PersonalModelsDirectory + Path.GetFileName(maybePlayerName.ToLower()) + "/";
                 } else {
                     return PublicModelsDirectory;
                 }
@@ -299,10 +296,9 @@ namespace MCGalaxy {
             }
 
             public void WriteBBFile(string json) {
-                File.WriteAllText(
-                    GetBBPath(),
-                    json
-                );
+                var path = GetBBPath();
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                File.WriteAllText(path, json);
             }
         }
 
