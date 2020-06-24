@@ -253,6 +253,11 @@ namespace MCGalaxy {
                 File.WriteAllText(path, json);
             }
 
+            public void Delete() {
+                File.Delete(GetCCPath());
+                File.Delete(GetBBPath());
+            }
+
             public void Define(Player p) {
                 var blockBench = ParseBlockBench();
                 var model = this.ToCustomModel(blockBench);
@@ -845,6 +850,8 @@ namespace MCGalaxy {
                             string maybePlayerName = StoredCustomModel.GetPlayerName(modelName);
                             bool targettingSelf = maybePlayerName != null && maybePlayerName.CaselessEq(p.name);
 
+                            // if you aren't targetting your own models,
+                            // and you aren't admin, denied
                             if (!targettingSelf && !CheckExtraPerm(p, data, 1)) return;
                             if (!ValidModelName(p, modelName)) return;
                         }
@@ -860,6 +867,10 @@ namespace MCGalaxy {
                                 // /CustomModel [name] upload [url]
                                 string url = args.PopFront();
                                 Upload(p, modelName, url);
+                                return;
+                            } else if (subCommand.CaselessEq("delete")) {
+                                // /CustomModel [name] delete
+                                Delete(p, modelName);
                                 return;
                             } else if (subCommand.CaselessEq("list")) {
                                 // /MyCustomModel list
@@ -1236,6 +1247,16 @@ namespace MCGalaxy {
                         modelName
                     );
                 }
+            }
+
+            void Delete(Player p, string modelName) {
+                StoredCustomModel storedCustomModel = new StoredCustomModel(modelName);
+                if (!storedCustomModel.Exists()) {
+                    p.Message("%WCustom Model %S{0} %Wnot found!", modelName);
+                    return;
+                }
+                storedCustomModel.Delete();
+                p.Message("%TCustom Model %S{0} %Wdeleted!", modelName);
             }
 
             //shrug
