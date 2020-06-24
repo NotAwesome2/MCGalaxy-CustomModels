@@ -36,8 +36,10 @@ namespace MCGalaxy {
         // don't store "u/vScale" because we take it from bbmodel's resolution.width
         class StoredCustomModel {
             [JsonIgnore] public string fullName;
+
             [JsonIgnore] public string modelName;
             [JsonIgnore] public HashSet<string> modifiers;
+            [JsonIgnore] public float scale;
 
             public float nameY;
             public float eyeY;
@@ -53,6 +55,8 @@ namespace MCGalaxy {
                 this.fullName = null;
                 this.modelName = null;
                 this.modifiers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                this.scale = 1.0f;
+
                 this.nameY = 32.5f;
                 this.eyeY = 26.0f;
                 this.collisionBounds = new Vec3F32 {
@@ -74,26 +78,30 @@ namespace MCGalaxy {
                 this.pushes = true;
                 this.usesHumanSkin = true;
                 this.calcHumanAnims = true;
+
                 this.cache = null;
             }
 
             public StoredCustomModel(string name) : this() {
-                this.modelName = name;
+                var modelName = ModelInfo.GetRawModel(name);
 
-                var split = name.Split(new string[] { " (" }, StringSplitOptions.None);
+                var split = modelName.Split(new string[] { " (" }, StringSplitOptions.None);
                 if (split.Length == 2) {
-                    this.modelName = split[0];
+                    modelName = split[0];
 
                     var attrs = split[1];
                     if (attrs.EndsWith(")")) {
                         // remove ")"
                         attrs = attrs.Substring(0, attrs.Length - 1);
                         foreach (var attr in attrs.SplitComma()) {
-                            modifiers.Add(attr);
+                            this.modifiers.Add(attr);
                         }
-                        Logger.Log(LogType.Warning, "->> " + modifiers.Count);
+                        Logger.Log(LogType.Warning, "->> " + this.modifiers.Count);
                     }
                 }
+
+                this.modelName = modelName;
+                this.scale = ModelInfo.GetRawScale(name);
 
                 this.UpdateFullName();
             }
@@ -103,6 +111,10 @@ namespace MCGalaxy {
                     this.fullName = this.modelName + " (" + this.modifiers.Join(",") + ")";
                 } else {
                     this.fullName = this.modelName;
+                }
+
+                if (this.scale != 1.0f) {
+                    this.fullName += "|" + this.scale;
                 }
             }
 
