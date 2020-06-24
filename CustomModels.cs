@@ -101,7 +101,9 @@ namespace MCGalaxy {
             public string GetFullName() {
                 var name = this.modelName;
                 if (this.modifiers.Count > 0) {
-                    name += " (" + this.modifiers.Join(",") + ")";
+                    var modifierNames = this.modifiers.ToArray();
+                    Array.Sort(modifierNames);
+                    name += " (" + modifierNames.Join(",") + ")";
                 }
                 return name;
             }
