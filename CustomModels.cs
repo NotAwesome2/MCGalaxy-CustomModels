@@ -797,24 +797,21 @@ namespace MCGalaxy {
                                     var defaultStoredCustomModel = new StoredCustomModel("default");
                                     foreach (var entry in ModifiableFields) {
                                         var fieldName = entry.Key;
-                                        var chatType = entry.Value;
+                                        var modelField = entry.Value;
 
-                                        if (
-                                            chatType.op &&
-                                            !CommandExtraPerms.Find("CustomModel", 1).UsableBy(p.Rank)
-                                        ) {
+                                        if (!modelField.CanEdit(p)) {
                                             continue;
                                         }
 
                                         p.Message(
                                             "%Tconfig {0} {1}",
                                             fieldName,
-                                            "[" + chatType.types.Join("] [") + "]"
+                                            "[" + modelField.types.Join("] [") + "]"
                                         );
                                         p.Message(
                                             "%H  {0} %S(Default %T{1}%S)",
-                                            chatType.desc,
-                                            chatType.get.Invoke(defaultStoredCustomModel)
+                                            modelField.desc,
+                                            modelField.get.Invoke(defaultStoredCustomModel)
                                         );
                                     }
                                     return;
@@ -912,34 +909,35 @@ namespace MCGalaxy {
                );
             }
 
-            class ChatType {
+            class ModelField {
                 public string[] types;
                 public string desc;
                 public Func<StoredCustomModel, string> get;
                 // (model, p, input) => bool
                 public Func<StoredCustomModel, Player, string[], bool> set;
-                public bool op;
+                // other config fields
+                public bool extra;
 
-                public ChatType(
+                public ModelField(
                     string[] types,
                     string desc,
                     Func<StoredCustomModel, string> get,
                     Func<StoredCustomModel, Player, string[], bool> set,
-                    bool op = false
+                    bool extra = false
                 ) {
                     this.types = types;
                     this.desc = desc;
                     this.get = get;
                     this.set = set;
-                    this.op = op;
+                    this.extra = extra;
                 }
 
-                public ChatType(
+                public ModelField(
                     string type,
                     string desc,
                     Func<StoredCustomModel, string> get,
                     Func<StoredCustomModel, Player, string, bool> set,
-                    bool op = false
+                    bool extra = false
                 ) : this(
                         new string[] { type },
                         desc,
@@ -947,14 +945,35 @@ namespace MCGalaxy {
                         (model, p, inputs) => {
                             return set(model, p, inputs[0]);
                         },
-                        op
+                        extra
                 ) { }
+
+                // this doesn't check access for player vs model,
+                // only checks if they can edit a certain field on this model
+                public bool CanEdit(Player p, string modelName = null) {
+                    if (this.extra) {
+                        // you can edit these if you're op,
+                        if (CommandExtraPerms.Find("CustomModel", 1).UsableBy(p.Rank)) {
+                            return true;
+                        } else {
+                            // or if it's not a primary personal model
+                            if (modelName != null && modelName.EndsWith("+")) {
+                                // is a primary personal model
+                                return false;
+                            } else {
+                                return true;
+                            }
+                        }
+                    } else {
+                        return true;
+                    }
+                }
             }
 
-            static Dictionary<string, ChatType> ModifiableFields = new Dictionary<string, ChatType>(StringComparer.OrdinalIgnoreCase) {
+            static Dictionary<string, ModelField> ModifiableFields = new Dictionary<string, ModelField>(StringComparer.OrdinalIgnoreCase) {
                 {
                     "nameY",
-                    new ChatType(
+                    new ModelField(
                         "height",
                         "Name text height",
                         (model) => "" + model.nameY,
@@ -963,7 +982,7 @@ namespace MCGalaxy {
                 },
                 {
                     "eyeY",
-                    new ChatType(
+                    new ModelField(
                         "height",
                         "Eye position height",
                         (model) => "" + model.eyeY,
@@ -975,7 +994,7 @@ namespace MCGalaxy {
                 },
                 {
                     "collisionBounds",
-                    new ChatType(
+                    new ModelField(
                         new string[] {"x", "y", "z"},
                         "How big you are",
                         (model) => {
@@ -997,7 +1016,7 @@ namespace MCGalaxy {
                 },
                 {
                     "pickingBounds",
-                    new ChatType(
+                    new ModelField(
                         new string[] {"minX", "minY", "minZ", "maxX", "maxY", "maxZ"},
                         "Hitbox coordinates",
                         (model) => {
@@ -1025,7 +1044,7 @@ namespace MCGalaxy {
                 },
                 {
                     "bobbing",
-                    new ChatType(
+                    new ModelField(
                         "bool",
                         "Third person bobbing animation",
                         (model) => model.bobbing.ToString(),
@@ -1034,7 +1053,7 @@ namespace MCGalaxy {
                 },
                 {
                     "pushes",
-                    new ChatType(
+                    new ModelField(
                         "bool",
                         "Push other players",
                         (model) => model.pushes.ToString(),
@@ -1043,7 +1062,7 @@ namespace MCGalaxy {
                 },
                 {
                     "usesHumanSkin",
-                    new ChatType(
+                    new ModelField(
                         "bool",
                         "Fall back to using entity name for skin",
                         (model) => model.usesHumanSkin.ToString(),
@@ -1052,7 +1071,7 @@ namespace MCGalaxy {
                 },
                 {
                     "calcHumanAnims",
-                    new ChatType(
+                    new ModelField(
                         "bool",
                         "Use Crazy Arms",
                         (model) => model.calcHumanAnims.ToString(),
@@ -1074,18 +1093,15 @@ namespace MCGalaxy {
                     // /CustomModel [name] config
                     foreach (var entry in ModifiableFields) {
                         var fieldName = entry.Key;
-                        var chatType = entry.Value;
-                        if (
-                            chatType.op &&
-                            !CommandExtraPerms.Find("CustomModel", 1).UsableBy(p.Rank)
-                        ) {
+                        var modelField = entry.Value;
+                        if (!modelField.CanEdit(p, modelName)) {
                             continue;
                         }
 
                         p.Message(
                             "{0} = %T{1}",
                             fieldName,
-                            chatType.get.Invoke(storedCustomModel)
+                            modelField.get.Invoke(storedCustomModel)
                         );
                     }
                     return;
@@ -1104,27 +1120,30 @@ namespace MCGalaxy {
                         return;
                     }
 
-                    var chatType = ModifiableFields[fieldName];
+                    var modelField = ModifiableFields[fieldName];
                     if (args.Count == 0) {
                         // /CustomModel [name] config [field]
                         p.Message(
                             "{0} = %T{1}",
                             fieldName,
-                            chatType.get.Invoke(storedCustomModel)
+                            modelField.get.Invoke(storedCustomModel)
                         );
                         return;
                     } else {
                         // /CustomModel config [field] [value]...
                         var values = args.ToArray();
-                        if (values.Length != chatType.types.Length) {
+                        if (values.Length != modelField.types.Length) {
                             p.Message(
                                 "%WNot enough values for setting field %S{0}",
                                 fieldName
                             );
                         } else {
-                            if (chatType.op && !CheckExtraPerm(p, data, 1)) return;
+                            if (!modelField.CanEdit(p, modelName)) {
+                                p.Message("%WYou can't edit this field on a primary personal model!");
+                                return;
+                            }
 
-                            if (chatType.set.Invoke(storedCustomModel, p, values)) {
+                            if (modelField.set.Invoke(storedCustomModel, p, values)) {
                                 // field was set, update file!
                                 p.Message("%TField %S{0} %Tset!", fieldName);
 
