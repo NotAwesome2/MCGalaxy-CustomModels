@@ -35,8 +35,6 @@ namespace MCGalaxy {
         // don't store "parts" because we store those in the full .bbmodel file
         // don't store "u/vScale" because we take it from bbmodel's resolution.width
         class StoredCustomModel {
-            [JsonIgnore] public string fullName;
-
             [JsonIgnore] public string modelName;
             [JsonIgnore] public HashSet<string> modifiers;
             [JsonIgnore] public float scale;
@@ -52,7 +50,6 @@ namespace MCGalaxy {
             public bool calcHumanAnims;
 
             public StoredCustomModel() {
-                this.fullName = null;
                 this.modelName = null;
                 this.modifiers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 this.scale = 1.0f;
@@ -99,30 +96,30 @@ namespace MCGalaxy {
 
                 this.modelName = modelName;
                 this.scale = ModelInfo.GetRawScale(name);
-
-                this.UpdateFullName();
             }
 
-            void UpdateFullName() {
+            public string GetFullName() {
+                var name = this.modelName;
                 if (this.modifiers.Count > 0) {
-                    this.fullName = this.modelName + " (" + this.modifiers.Join(",") + ")";
-                } else {
-                    this.fullName = this.modelName;
+                    name += " (" + this.modifiers.Join(",") + ")";
                 }
+                return name;
+            }
 
+            public string GetFullNameWithScale() {
+                var name = this.GetFullName();
                 if (this.scale != 1.0f) {
-                    this.fullName += "|" + this.scale;
+                    name += "|" + this.scale;
                 }
+                return name;
             }
 
             public void AddModifier(string modifier) {
                 this.modifiers.Add(modifier);
-                this.UpdateFullName();
             }
 
             public void RemoveModifier(string modifier) {
                 this.modifiers.Remove(modifier);
-                this.UpdateFullName();
             }
 
             public void LoadFromCustomModel(CustomModel model) {
@@ -161,7 +158,7 @@ namespace MCGalaxy {
 
                 // convert to block units
                 var model = new CustomModel {
-                    name = fullName,
+                    name = GetFullName(),
                     // this is set in DefineModel
                     partCount = 0,
                     uScale = blockBench.resolution.width,
@@ -915,7 +912,7 @@ namespace MCGalaxy {
                     storedModel.AddModifier("sit");
                 }
 
-                p.HandleCommand("XModel", storedModel.fullName, data);
+                p.HandleCommand("XModel", storedModel.GetFullNameWithScale(), data);
             }
 
             class ModelField {
