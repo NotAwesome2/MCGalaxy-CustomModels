@@ -868,6 +868,10 @@ namespace MCGalaxy {
                                 // /MyCustomModel list
                                 List(p, StoredCustomModel.GetPlayerName(modelName));
                                 return;
+                            } else if (subCommand.CaselessEq("sit")) {
+                                // /MyCustomModel sit
+                                Sit(p);
+                                return;
                             }
                         }
                     }
