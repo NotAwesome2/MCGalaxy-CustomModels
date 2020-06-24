@@ -78,8 +78,6 @@ namespace MCGalaxy {
                 this.pushes = true;
                 this.usesHumanSkin = true;
                 this.calcHumanAnims = true;
-
-                this.cache = null;
             }
 
             public StoredCustomModel(string name) : this() {
@@ -152,60 +150,14 @@ namespace MCGalaxy {
                 this.calcHumanAnims = model.calcHumanAnims;
             }
 
-            [JsonIgnore] BlockBench.JsonRoot cache = null;
             BlockBench.JsonRoot ParseBlockBench() {
-                if (cache != null) {
-                    return cache;
-                }
-
                 string path = GetBBPath();
                 string contentsBB = File.ReadAllText(path);
                 var blockBench = BlockBench.Parse(contentsBB);
-                cache = blockBench;
                 return blockBench;
             }
 
-            public CustomModelPart[] ToCustomModelParts() {
-                var blockBench = ParseBlockBench();
-                var parts = blockBench.ToCustomModelParts();
-
-                if (this.modifiers.Contains("sitting")) {
-                    CustomModelPart leg = null;
-                    foreach (var part in parts) {
-                        if (
-                            part.anim == CustomModelAnim.LeftLeg ||
-                            part.anim == CustomModelAnim.RightLeg
-                        ) {
-                            // rotate legs to point forward, pointed a little outwards
-                            leg = part;
-                            part.rotation.X = 90.0f;
-                            part.rotation.Y = part.anim == CustomModelAnim.LeftLeg ? 5.0f : -5.0f;
-                            part.anim = CustomModelAnim.None;
-                        }
-                    }
-
-                    if (leg != null) {
-                        var legHeight = leg.max.Y - leg.min.Y;
-                        var legForwardWidth = leg.max.Z - leg.min.Z;
-                        // lower all parts by leg's Y height, up by the leg's width
-                        foreach (var part in parts) {
-                            part.min.Y -= legHeight - legForwardWidth / 2.0f;
-                            part.max.Y -= legHeight - legForwardWidth / 2.0f;
-                            part.rotationOrigin.Y -= legHeight - legForwardWidth / 2.0f;
-
-                            if (part.firstPersonArm) {
-                                // remove first person arm because offset changed
-                                part.firstPersonArm = false;
-                            }
-                        }
-                    }
-                }
-
-                return parts;
-            }
-
-            public CustomModel ToCustomModel() {
-                var blockBench = ParseBlockBench();
+            CustomModel ToCustomModel(BlockBench.JsonRoot blockBench) {
 
                 // convert to block units
                 var model = new CustomModel {
@@ -299,6 +251,48 @@ namespace MCGalaxy {
                 var path = GetBBPath();
                 Directory.CreateDirectory(Path.GetDirectoryName(path));
                 File.WriteAllText(path, json);
+            }
+
+            public void Define(Player p) {
+                var blockBench = ParseBlockBench();
+                var model = this.ToCustomModel(blockBench);
+                var parts = blockBench.ToCustomModelParts();
+
+                if (this.modifiers.Contains("sit")) {
+                    CustomModelPart leg = null;
+                    foreach (var part in parts) {
+                        if (
+                            part.anim == CustomModelAnim.LeftLeg ||
+                            part.anim == CustomModelAnim.RightLeg
+                        ) {
+                            // rotate legs to point forward, pointed a little outwards
+                            leg = part;
+                            part.rotation.X = 90.0f;
+                            part.rotation.Y = part.anim == CustomModelAnim.LeftLeg ? 5.0f : -5.0f;
+                            part.anim = CustomModelAnim.None;
+                        }
+                    }
+
+                    if (leg != null) {
+                        var legHeight = leg.max.Y - leg.min.Y;
+                        var legForwardWidth = leg.max.Z - leg.min.Z;
+                        // lower all parts by leg's Y height, up by the leg's width
+                        var lower = legHeight - legForwardWidth / 2.0f;
+                        foreach (var part in parts) {
+                            part.min.Y -= lower;
+                            part.max.Y -= lower;
+                            part.rotationOrigin.Y -= lower;
+
+                            if (part.firstPersonArm) {
+                                // remove first person arm because offset changed
+                                part.firstPersonArm = false;
+                            }
+                        }
+                        model.eyeY -= lower;
+                    }
+                }
+
+                DefineModel(p, model, parts);
             }
         }
 
@@ -517,7 +511,7 @@ namespace MCGalaxy {
                     var storedModel = new StoredCustomModel(modelName);
                     if (storedModel.Exists()) {
                         storedModel.LoadFromFile();
-                        DefineModel(p, storedModel.ToCustomModel(), storedModel.ToCustomModelParts());
+                        storedModel.Define(p);
                         sentModels.Add(modelName);
                     }
                 }
@@ -845,7 +839,7 @@ namespace MCGalaxy {
                             List(p, null);
                             return;
                         } else if (modelName.CaselessEq("sit")) {
-                            // /CustomModel [name] sit
+                            // /CustomModel sit
                             Sit(p);
                             return;
                         } else if (modelName.CaselessEq("-own")) {
@@ -900,17 +894,17 @@ namespace MCGalaxy {
                     return;
                 }
 
-                if (storedModel.modifiers.Contains("sitting")) {
-                    storedModel.RemoveModifier("sitting");
+                if (storedModel.modifiers.Contains("sit")) {
+                    storedModel.RemoveModifier("sit");
                 } else {
-                    storedModel.AddModifier("sitting");
+                    storedModel.AddModifier("sit");
                 }
 
                 Entities.UpdateModel(p, storedModel.fullName);
 
                 p.Message(
                    "%SNow %T{0}%S!",
-                   storedModel.modifiers.Contains("sitting") ? "sitting" : "standing"
+                   storedModel.modifiers.Contains("sit") ? "sitting" : "standing"
                );
             }
 
