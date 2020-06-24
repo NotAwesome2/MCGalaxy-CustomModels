@@ -38,6 +38,8 @@ namespace MCGalaxy {
             [JsonIgnore] public string modelName;
             [JsonIgnore] public HashSet<string> modifiers;
             [JsonIgnore] public float scale;
+            // override filename when reading/writing
+            [JsonIgnore] public string fileName;
 
             public float nameY;
             public float eyeY;
@@ -53,6 +55,7 @@ namespace MCGalaxy {
                 this.modelName = null;
                 this.modifiers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 this.scale = 1.0f;
+                this.fileName = null;
 
                 this.nameY = 32.5f;
                 this.eyeY = 26.0f;
@@ -78,11 +81,17 @@ namespace MCGalaxy {
             }
 
             public StoredCustomModel(string name) : this() {
-                var modelName = ModelInfo.GetRawModel(name);
+                this.modelName = ModelInfo.GetRawModel(name);
+                this.scale = ModelInfo.GetRawScale(name);
 
-                var split = modelName.Split(new string[] { " (" }, StringSplitOptions.None);
+                var split = this.modelName.Split(new string[] { " (" }, StringSplitOptions.None);
                 if (split.Length == 2) {
-                    modelName = split[0];
+                    if (this.Exists()) {
+                        // if "player+ (sit)" was a file, use that as override
+                        this.fileName = this.modelName;
+                    }
+
+                    this.modelName = split[0];
 
                     var attrs = split[1];
                     if (attrs.EndsWith(")")) {
@@ -93,9 +102,6 @@ namespace MCGalaxy {
                         }
                     }
                 }
-
-                this.modelName = modelName;
-                this.scale = ModelInfo.GetRawScale(name);
             }
 
             public string GetFullName() {
@@ -157,7 +163,6 @@ namespace MCGalaxy {
             }
 
             CustomModel ToCustomModel(BlockBench.JsonRoot blockBench) {
-
                 // convert to block units
                 var model = new CustomModel {
                     name = GetFullName(),
@@ -239,11 +244,13 @@ namespace MCGalaxy {
             }
 
             public string GetCCPath() {
-                return GetFolderPath(this.modelName) + Path.GetFileName(this.modelName.ToLower()) + CCModelExt;
+                var modelName = this.fileName != null ? this.fileName : this.modelName;
+                return GetFolderPath(modelName) + Path.GetFileName(modelName.ToLower()) + CCModelExt;
             }
 
             public string GetBBPath() {
-                return GetFolderPath(this.modelName) + Path.GetFileName(this.modelName.ToLower()) + BBModelExt;
+                var modelName = this.fileName != null ? this.fileName : this.modelName;
+                return GetFolderPath(modelName) + Path.GetFileName(modelName.ToLower()) + BBModelExt;
             }
 
             public void WriteBBFile(string json) {
@@ -262,39 +269,42 @@ namespace MCGalaxy {
                 var model = this.ToCustomModel(blockBench);
                 var parts = blockBench.ToCustomModelParts();
 
-                if (this.modifiers.Contains("sit")) {
-                    CustomModelPart leg = null;
-                    foreach (var part in parts) {
-                        if (
-                            part.anim == CustomModelAnim.LeftLeg ||
-                            part.anim == CustomModelAnim.RightLeg
-                        ) {
-                            // rotate legs to point forward, pointed a little outwards
-                            leg = part;
-                            part.rotation.X = 90.0f;
-                            part.rotation.Y = part.anim == CustomModelAnim.LeftLeg ? 5.0f : -5.0f;
-                            part.rotation.Z = 0;
-                            part.anim = CustomModelAnim.None;
-                        }
-                    }
-
-                    if (leg != null) {
-                        var legHeight = leg.max.Y - leg.min.Y;
-                        var legForwardWidth = leg.max.Z - leg.min.Z;
-                        // lower all parts by leg's Y height, up by the leg's width
-                        var lower = legHeight - legForwardWidth / 2.0f;
+                if (this.fileName == null) {
+                    // only apply modifiers if we aren't a file override
+                    if (this.modifiers.Contains("sit")) {
+                        CustomModelPart leg = null;
                         foreach (var part in parts) {
-                            part.min.Y -= lower;
-                            part.max.Y -= lower;
-                            part.rotationOrigin.Y -= lower;
-
-                            if (part.firstPersonArm) {
-                                // remove first person arm because offset changed
-                                part.firstPersonArm = false;
+                            if (
+                                part.anim == CustomModelAnim.LeftLeg ||
+                                part.anim == CustomModelAnim.RightLeg
+                            ) {
+                                // rotate legs to point forward, pointed a little outwards
+                                leg = part;
+                                part.rotation.X = 90.0f;
+                                part.rotation.Y = part.anim == CustomModelAnim.LeftLeg ? 5.0f : -5.0f;
+                                part.rotation.Z = 0;
+                                part.anim = CustomModelAnim.None;
                             }
                         }
-                        model.eyeY -= lower;
-                        model.nameY -= lower;
+
+                        if (leg != null) {
+                            var legHeight = leg.max.Y - leg.min.Y;
+                            var legForwardWidth = leg.max.Z - leg.min.Z;
+                            // lower all parts by leg's Y height, up by the leg's width
+                            var lower = legHeight - legForwardWidth / 2.0f;
+                            foreach (var part in parts) {
+                                part.min.Y -= lower;
+                                part.max.Y -= lower;
+                                part.rotationOrigin.Y -= lower;
+
+                                if (part.firstPersonArm) {
+                                    // remove first person arm because offset changed
+                                    part.firstPersonArm = false;
+                                }
+                            }
+                            model.eyeY -= lower;
+                            model.nameY -= lower;
+                        }
                     }
                 }
 
