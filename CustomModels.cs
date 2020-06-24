@@ -1136,13 +1136,12 @@ namespace MCGalaxy {
             //measured in pixels where 16 pixels = 1 block's length
             public const float maxWidth = 16;
             public const float maxHeight = 32;
-            public const float graceLength = 8; //how far you can extend past max width/height
-
-            static bool SizeAllowed(Vec3F32 boxCorner) {
+			// graceLength is how far (in pixels) you can extend past max width/height on all sides
+            static bool SizeAllowed(Vec3F32 boxCorner, float graceLength) {
                 //convert to block-unit to match boxCorner
                 const float maxWidthB = maxWidth / 16f;
                 const float maxHeightB = maxHeight / 16f;
-                const float graceLengthB = graceLength / 16f;
+                float graceLengthB = graceLength / 16f;
                 if (
                     boxCorner.Y < -graceLengthB ||
                     boxCorner.Y > maxHeightB + graceLengthB ||
@@ -1176,16 +1175,27 @@ namespace MCGalaxy {
                     //only do size check if they can't upload global models
                     if (!CommandExtraPerms.Find("CustomModel", 1).UsableBy(p.Rank)) {
                         for (int i = 0; i < parts.Length; i++) {
-                            if (!SizeAllowed(parts[i].min) || !SizeAllowed(parts[i].max)) {
+							// Models can be 1 block bigger if they aren't a purely personal model
+							bool purePersonal = modelName.EndsWith("+");
+							float graceLength = purePersonal ? 8.0f : 16.0f;
+							
+                            if (!SizeAllowed(parts[i].min, graceLength) || !SizeAllowed(parts[i].max, graceLength)) {
                                 p.Message(
-                                    "%WYou may not have any cubes in your model that stick out taller than %b{0}%W pixels vertically or wider than %b{1}%W pixels horizontally.",
-                                    maxHeight + graceLength,
-                                    maxWidth / 2 + graceLength
-                                );
-                                p.Message(
-                                    "%SPlease make the %b{0} cube in your list %Scloser to the center of the model grid%S.",
+                                    "%WThe %b{0} cube in your list %Wis out of bounds.",
                                     ListicleNumber(i + 1)
                                 );
+                                p.Message(
+                                    "%WYour {0} may not be larger than %b{1}%W pixels tall or %b{2}%W pixels wide.",
+									purePersonal ? "personal model" : "model",
+                                    maxHeight + graceLength,
+                                    maxWidth + graceLength * 2,
+									graceLength
+                                );
+
+								if (purePersonal) {
+									p.Message("These limits only apply to your personal \"%b{0}%S\" model.", p.name.ToLower());
+									p.Message("Models you upload with other names (e.g, /cm {0}bike upload) can be slightly larger.", p.name.ToLower());
+								}
                                 return;
                             }
                         }
