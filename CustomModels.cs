@@ -273,6 +273,7 @@ namespace MCGalaxy {
                             leg = part;
                             part.rotation.X = 90.0f;
                             part.rotation.Y = part.anim == CustomModelAnim.LeftLeg ? 5.0f : -5.0f;
+                            part.rotation.Z = 0;
                             part.anim = CustomModelAnim.None;
                         }
                     }
@@ -293,6 +294,7 @@ namespace MCGalaxy {
                             }
                         }
                         model.eyeY -= lower;
+                        model.nameY -= lower;
                     }
                 }
 
