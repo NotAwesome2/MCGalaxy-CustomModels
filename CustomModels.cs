@@ -96,7 +96,6 @@ namespace MCGalaxy {
                         foreach (var attr in attrs.SplitComma()) {
                             this.modifiers.Add(attr);
                         }
-                        Logger.Log(LogType.Warning, "->> " + this.modifiers.Count);
                     }
                 }
 
@@ -431,7 +430,6 @@ namespace MCGalaxy {
         }
 
         static void DefineModel(Player p, CustomModel model, CustomModelPart[] parts) {
-            Logger.Log(LogType.Warning, "DefineModel " + model.name);
             if (!p.Supports(CpeExt.CustomModels)) return;
 
             var modelId = GetModelId(p, model.name, true).Value;
@@ -446,8 +444,6 @@ namespace MCGalaxy {
         }
 
         static void UndefineModel(Player p, string name) {
-            Logger.Log(LogType.Warning, "UndefineModel " + name);
-
             if (!p.Supports(CpeExt.CustomModels)) return;
             byte[] modelPacket = Packet.UndefineModel(GetModelId(p, name).Value);
             p.Send(modelPacket);
@@ -1148,7 +1144,7 @@ namespace MCGalaxy {
             //measured in pixels where 16 pixels = 1 block's length
             public const float maxWidth = 16;
             public const float maxHeight = 32;
-			// graceLength is how far (in pixels) you can extend past max width/height on all sides
+            // graceLength is how far (in pixels) you can extend past max width/height on all sides
             static bool SizeAllowed(Vec3F32 boxCorner, float graceLength) {
                 //convert to block-unit to match boxCorner
                 const float maxWidthB = maxWidth / 16f;
@@ -1187,10 +1183,10 @@ namespace MCGalaxy {
                     //only do size check if they can't upload global models
                     if (!CommandExtraPerms.Find("CustomModel", 1).UsableBy(p.Rank)) {
                         for (int i = 0; i < parts.Length; i++) {
-							// Models can be 1 block bigger if they aren't a purely personal model
-							bool purePersonal = modelName.EndsWith("+");
-							float graceLength = purePersonal ? 8.0f : 16.0f;
-							
+                            // Models can be 1 block bigger if they aren't a purely personal model
+                            bool purePersonal = modelName.EndsWith("+");
+                            float graceLength = purePersonal ? 8.0f : 16.0f;
+
                             if (!SizeAllowed(parts[i].min, graceLength) || !SizeAllowed(parts[i].max, graceLength)) {
                                 p.Message(
                                     "%WThe %b{0} cube in your list %Wis out of bounds.",
@@ -1198,16 +1194,16 @@ namespace MCGalaxy {
                                 );
                                 p.Message(
                                     "%WYour {0} may not be larger than %b{1}%W pixels tall or %b{2}%W pixels wide.",
-									purePersonal ? "personal model" : "model",
+                                    purePersonal ? "personal model" : "model",
                                     maxHeight + graceLength,
                                     maxWidth + graceLength * 2,
-									graceLength
+                                    graceLength
                                 );
 
-								if (purePersonal) {
-									p.Message("These limits only apply to your personal \"%b{0}%S\" model.", p.name.ToLower());
-									p.Message("Models you upload with other names (e.g, /cm {0}bike upload) can be slightly larger.", p.name.ToLower());
-								}
+                                if (purePersonal) {
+                                    p.Message("These limits only apply to your personal \"%b{0}%S\" model.", p.name.ToLower());
+                                    p.Message("Models you upload with other names (e.g, /cm {0}bike upload) can be slightly larger.", p.name.ToLower());
+                                }
                                 return;
                             }
                         }
