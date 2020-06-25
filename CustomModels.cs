@@ -9,6 +9,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Text.RegularExpressions;
 using System.Threading;
 using MCGalaxy.Commands;
 using MCGalaxy.Events.PlayerEvents;
@@ -84,22 +85,19 @@ namespace MCGalaxy {
                 this.modelName = ModelInfo.GetRawModel(name);
                 this.scale = ModelInfo.GetRawScale(name);
 
-                var split = this.modelName.Split(new string[] { " (" }, StringSplitOptions.None);
-                if (split.Length == 2) {
+                var split = this.modelName.Split(new char[] { '(' }, StringSplitOptions.RemoveEmptyEntries);
+                // "player+named", "aaa,bbbb)"
+                if (split.Length == 2 && split[1].EndsWith(")")) {
                     if (this.Exists()) {
                         // if "player+ (sit)" was a file, use that as override
                         this.fileName = this.modelName;
                     }
-
                     this.modelName = split[0];
 
-                    var attrs = split[1];
-                    if (attrs.EndsWith(")")) {
-                        // remove ")"
-                        attrs = attrs.Substring(0, attrs.Length - 1);
-                        foreach (var attr in attrs.SplitComma()) {
-                            this.modifiers.Add(attr);
-                        }
+                    // remove ")"
+                    var attrs = split[1].Substring(0, attrs.Length - 1);
+                    foreach (var attr in attrs.SplitComma()) {
+                        this.modifiers.Add(attr);
                     }
                 }
             }
@@ -109,7 +107,7 @@ namespace MCGalaxy {
                 if (this.modifiers.Count > 0) {
                     var modifierNames = this.modifiers.ToArray();
                     Array.Sort(modifierNames);
-                    name += " (" + modifierNames.Join(",") + ")";
+                    name += "(" + modifierNames.Join(",") + ")";
                 }
                 return name;
             }
@@ -401,7 +399,7 @@ namespace MCGalaxy {
 
                     Logger.Log(
                         LogType.SystemActivity,
-                        "CustomModels: Created a new default template \"{0}\" in {1}",
+                        "CustomModels: Created a new default template for \"{0}\" in {1}",
                         modelName + CCModelExt,
                         folderPath
                     );
@@ -436,6 +434,7 @@ namespace MCGalaxy {
         }
 
         static void DefineModel(Player p, CustomModel model, CustomModelPart[] parts) {
+            // Logger.Log(LogType.SystemActivity, "DefineModel {0} {1}", p.name, model.name);
             if (!p.Supports(CpeExt.CustomModels)) return;
 
             var modelId = GetModelId(p, model.name, true).Value;
@@ -450,7 +449,9 @@ namespace MCGalaxy {
         }
 
         static void UndefineModel(Player p, string name) {
+            // Logger.Log(LogType.SystemActivity, "UndefineModel {0} {1}", p.name, name);
             if (!p.Supports(CpeExt.CustomModels)) return;
+
             byte[] modelPacket = Packet.UndefineModel(GetModelId(p, name).Value);
             p.Send(modelPacket);
 
@@ -902,15 +903,14 @@ namespace MCGalaxy {
                 Help(p);
             }
 
+            private static readonly Regex regex = new Regex("^[\\w\\.]+\\+?\\w*[\\w\\(\\,\\)]*$");
             public static bool ValidModelName(Player p, string name) {
-                if (Formatter.ValidName(p, name, "model")) {
-                    if (name.Count(c => c == '+') <= 1) {
-                        return true;
-                    } else {
-                        p.Message("\"{0}\" is not a valid model name.", name);
-                    }
+                if (regex.IsMatch(name)) {
+                    return true;
+                } else {
+                    p.Message("\"{0}\" is not a valid model name.", name);
+                    return false;
                 }
-                return false;
             }
 
             void Sit(Player p, CommandData data) {
