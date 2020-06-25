@@ -81,14 +81,14 @@ namespace MCGalaxy {
                 this.calcHumanAnims = true;
             }
 
-            public StoredCustomModel(string name) : this() {
+            public StoredCustomModel(string name, bool overrideFileName = false) : this() {
                 this.modelName = ModelInfo.GetRawModel(name);
                 this.scale = ModelInfo.GetRawScale(name);
 
                 var split = this.modelName.Split(new char[] { '(' }, StringSplitOptions.RemoveEmptyEntries);
                 // "player+named", "aaa,bbbb)"
                 if (split.Length == 2 && split[1].EndsWith(")")) {
-                    if (this.Exists()) {
+                    if (overrideFileName || this.Exists()) {
                         // if "player+ (sit)" was a file, use that as override
                         this.fileName = this.modelName;
                     }
@@ -127,6 +127,14 @@ namespace MCGalaxy {
 
             public void RemoveModifier(string modifier) {
                 this.modifiers.Remove(modifier);
+            }
+
+            public bool IsPersonal() {
+                return modelName.Contains("+");
+            }
+
+            public bool IsPersonalPrimary() {
+                return modelName.EndsWith("+");
             }
 
             public void LoadFromCustomModel(CustomModel model) {
@@ -394,7 +402,7 @@ namespace MCGalaxy {
                 }
 
                 count += 1;
-                var defaultModel = new StoredCustomModel(modelName);
+                var defaultModel = new StoredCustomModel(modelName, true);
                 if (!defaultModel.Exists()) {
                     defaultModel.WriteToFile();
 
@@ -978,7 +986,7 @@ namespace MCGalaxy {
                             return true;
                         } else {
                             // or if it's not a primary personal model
-                            if (modelName != null && modelName.EndsWith("+")) {
+                            if (modelName != null && new StoredCustomModel(modelName, true).IsPersonalPrimary()) {
                                 // is a primary personal model
                                 return false;
                             } else {
@@ -1102,7 +1110,7 @@ namespace MCGalaxy {
             };
 
             void Config(Player p, CommandData data, string modelName, List<string> args) {
-                StoredCustomModel storedCustomModel = new StoredCustomModel(modelName);
+                StoredCustomModel storedCustomModel = new StoredCustomModel(modelName, true);
                 if (!storedCustomModel.Exists()) {
                     p.Message("%WCustom Model %S{0} %Wnot found!", modelName);
                     return;
@@ -1214,11 +1222,14 @@ namespace MCGalaxy {
                         return;
                     }
 
+                    // override filename because file might not exist yet
+                    var storedModel = new StoredCustomModel(modelName, true);
+
                     //only do size check if they can't upload global models
                     if (!CommandExtraPerms.Find("CustomModel", 1).UsableBy(p.Rank)) {
                         for (int i = 0; i < parts.Length; i++) {
                             // Models can be 1 block bigger if they aren't a purely personal model
-                            bool purePersonal = modelName.EndsWith("+");
+                            bool purePersonal = storedModel.IsPersonalPrimary();
                             float graceLength = purePersonal ? 8.0f : 16.0f;
 
                             if (!SizeAllowed(parts[i].min, graceLength) || !SizeAllowed(parts[i].max, graceLength)) {
@@ -1243,7 +1254,6 @@ namespace MCGalaxy {
                         }
                     }
 
-                    var storedModel = new StoredCustomModel(modelName);
                     storedModel.WriteBBFile(json);
 
                     if (!storedModel.Exists()) {
@@ -1260,7 +1270,7 @@ namespace MCGalaxy {
             }
 
             void Delete(Player p, string modelName) {
-                StoredCustomModel storedCustomModel = new StoredCustomModel(modelName);
+                StoredCustomModel storedCustomModel = new StoredCustomModel(modelName, true);
                 if (!storedCustomModel.Exists()) {
                     p.Message("%WCustom Model %S{0} %Wnot found!", modelName);
                     return;
