@@ -95,8 +95,9 @@ namespace MCGalaxy {
                     this.modelName = split[0];
 
                     // remove ")"
-                    var attrs = split[1].Substring(0, attrs.Length - 1);
+                    var attrs = split[1].Substring(0, split[1].Length - 1);
                     foreach (var attr in attrs.SplitComma()) {
+                        if (attr.Trim() == "") continue;
                         this.modifiers.Add(attr);
                     }
                 }
