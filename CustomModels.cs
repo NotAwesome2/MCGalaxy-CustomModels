@@ -787,29 +787,21 @@ namespace MCGalaxy {
                     };
                 }
             }
-            public override CommandAlias[] Aliases {
-                get {
-                    return new[] {
-                        new CommandAlias("MyCustomModel", "-own"),
-                        new CommandAlias("MyCM", "-own"),
-                    };
-                }
-            }
 
             public override void Help(Player p) {
-                p.Message("%T/CustomModel list");
-                p.Message("%H  List all public custom models.");
-
-                p.Message("%T/CustomModel [-own/model name] upload [bbmodel url]");
-                p.Message("%H  Upload a BlockBench file to use as your personal model.");
-
-                p.Message("%T/CustomModel [-own/model name] delete");
-                p.Message("%H  Delete a model.");
-
                 p.Message("%T/CustomModel sit");
                 p.Message("%H  Toggle sitting on your worn custom model.");
 
-                p.Message("%T/CustomModel [-own/model name] config [field] [value]");
+                p.Message("%T/CustomModel list");
+                p.Message("%H  List all public custom models.");
+
+                p.Message("%T/CustomModel upload [model name] [bbmodel url]");
+                p.Message("%H  Upload a BlockBench file to use as your personal model.");
+
+                p.Message("%T/CustomModel delete [model name]");
+                p.Message("%H  Delete a model.");
+
+                p.Message("%T/CustomModel config [model name] [field] [value]");
                 p.Message("%H  Configures options on your personal model.");
                 p.Message("%H  See %T/Help CustomModel config fields %Hfor more details on [field]");
             }
@@ -854,62 +846,59 @@ namespace MCGalaxy {
             }
 
             public override void Use(Player p, string message, CommandData data) {
-                if (message.Trim() != "") {
-                    var args = new List<string>(message.SplitSpaces());
-                    if (args.Count >= 1) {
-                        // /CustomModel [name]
+                var args = new List<string>(message.Trim().SplitSpaces());
+                if (args.Count >= 1) {
+                    string subCommand = args.PopFront();
 
-                        string modelName = args.PopFront();
-                        if (modelName.CaselessEq("list")) {
-                            // /CustomModel list
-                            List(p, null);
-                            return;
-                        } else if (modelName.CaselessEq("sit")) {
+                    if (args.Count == 0) {
+                        if (subCommand.CaselessEq("sit")) {
                             // /CustomModel sit
                             Sit(p, data);
                             return;
-                        } else if (modelName.CaselessEq("-own")) {
-                            modelName = p.name;
-                        } else {
-                            string maybePlayerName = StoredCustomModel.GetPlayerName(modelName);
-                            bool targettingSelf = maybePlayerName != null && maybePlayerName.CaselessEq(p.name);
-
-                            // if you aren't targetting your own models,
-                            // and you aren't admin, denied
-                            if (!targettingSelf && !CheckExtraPerm(p, data, 1)) return;
-                            if (!ValidModelName(p, modelName)) return;
+                        } else if (subCommand.CaselessEq("list")) {
+                            // /CustomModel list
+                            List(p, null);
+                            return;
                         }
-                        modelName = Path.GetFileName(modelName);
+                    } else if (args.Count >= 1) {
+                        var modelName = TargetModelName(p, data, args.PopFront());
+                        if (modelName == null) return;
 
-                        if (args.Count >= 1) {
-                            var subCommand = args.PopFront();
-                            if (subCommand.CaselessEq("config")) {
-                                // /CustomModel [name] config
-                                Config(p, data, modelName, args);
-                                return;
-                            } else if (subCommand.CaselessEq("upload") && args.Count == 1) {
-                                // /CustomModel [name] upload [url]
-                                string url = args.PopFront();
-                                Upload(p, modelName, url);
-                                return;
-                            } else if (subCommand.CaselessEq("delete")) {
-                                // /CustomModel [name] delete
-                                Delete(p, modelName);
-                                return;
-                            } else if (subCommand.CaselessEq("list")) {
-                                // /MyCustomModel list
-                                List(p, StoredCustomModel.GetPlayerName(modelName));
-                                return;
-                            } else if (subCommand.CaselessEq("sit")) {
-                                // /MyCustomModel sit
-                                Sit(p, data);
-                                return;
-                            }
+                        if (subCommand.CaselessEq("list") && args.Count == 0) {
+                            // /CustomModel list [name]
+                            List(p, StoredCustomModel.GetPlayerName(modelName));
+                            return;
+                        } else if (subCommand.CaselessEq("config")) {
+                            // /CustomModel config [name] [field] [values...]
+                            Config(p, data, modelName, args);
+                            return;
+                        } else if (subCommand.CaselessEq("upload") && args.Count == 1) {
+                            // /CustomModel upload [name] [url]
+                            string url = args.PopFront();
+                            Upload(p, modelName, url);
+                            return;
+                        } else if (subCommand.CaselessEq("delete") && args.Count == 0) {
+                            // /CustomModel delete [name]
+                            Delete(p, modelName);
+                            return;
                         }
                     }
                 }
 
                 Help(p);
+            }
+
+            private string TargetModelName(Player p, CommandData data, string arg) {
+                if (!ValidModelName(p, arg)) return null;
+
+                string maybePlayerName = StoredCustomModel.GetPlayerName(arg);
+                bool targettingSelf = maybePlayerName != null && maybePlayerName.CaselessEq(p.name);
+
+                // if you aren't targetting your own models,
+                // and you aren't admin, denied
+                if (!targettingSelf && !CheckExtraPerm(p, data, 1)) return null;
+
+                return Path.GetFileName(arg);
             }
 
             private static readonly Regex regex = new Regex("^[\\w\\.]+\\+?\\w*[\\w\\(\\,\\)]*$");
