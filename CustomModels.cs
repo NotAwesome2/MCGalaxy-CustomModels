@@ -520,7 +520,7 @@ namespace MCGalaxy {
         }
 
         static void DefineModel(Player p, CustomModel model, CustomModelPart[] parts) {
-            Logger.Log(LogType.SystemActivity, "DefineModel {0} {1}", p.name, model.name);
+            // Logger.Log(LogType.SystemActivity, "DefineModel {0} {1}", p.name, model.name);
             if (!p.Supports(CpeExt.CustomModels)) return;
 
             var modelId = GetModelId(p, model.name, true).Value;
@@ -535,7 +535,7 @@ namespace MCGalaxy {
         }
 
         static void UndefineModel(Player p, string name) {
-            Logger.Log(LogType.SystemActivity, "UndefineModel {0} {1}", p.name, name);
+            // Logger.Log(LogType.SystemActivity, "UndefineModel {0} {1}", p.name, name);
             if (!p.Supports(CpeExt.CustomModels)) return;
 
             byte[] modelPacket = Packet.UndefineModel(GetModelId(p, name).Value);
@@ -866,9 +866,10 @@ namespace MCGalaxy {
                     storedModel.AddModifier("alex");
                 }
 
-                if (!e.Model.CaselessEq(storedModel.GetFullNameWithScale())) {
-                    // e.HandleCommand("XModel", storedModel.GetFullNameWithScale(), e.DefaultCmdData);
-                    Entities.UpdateModel(e, storedModel.GetFullNameWithScale());
+                var name = storedModel.GetFullNameWithScale();
+                if (!e.Model.CaselessEq(name)) {
+                    // e.HandleCommand("XModel", name, e.DefaultCmdData);
+                    Entities.UpdateModel(e, name);
                 }
             }
         }
