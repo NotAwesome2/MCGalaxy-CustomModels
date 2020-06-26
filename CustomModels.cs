@@ -974,7 +974,7 @@ namespace MCGalaxy {
                             // /CustomModel list
                             List(p, null);
                             return;
-                        } else if (subCommand.CaselessEq("test")) {
+                        } else if (subCommand.CaselessEq("fixskin")) {
                             UpdateSkinType(p);
                             return;
                         }
