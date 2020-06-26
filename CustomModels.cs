@@ -889,6 +889,10 @@ namespace MCGalaxy {
             }
 
             private string TargetModelName(Player p, CommandData data, string arg) {
+                if (arg.CaselessEq("-own")) {
+                    arg = p.name;
+                }
+
                 if (!ValidModelName(p, arg)) return null;
 
                 string maybePlayerName = StoredCustomModel.GetPlayerName(arg);
