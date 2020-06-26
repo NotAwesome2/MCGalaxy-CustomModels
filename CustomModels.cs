@@ -36,52 +36,39 @@ namespace MCGalaxy {
         // don't store "parts" because we store those in the full .bbmodel file
         // don't store "u/vScale" because we take it from bbmodel's resolution.width
         class StoredCustomModel {
-            [JsonIgnore] public string modelName;
-            [JsonIgnore] public HashSet<string> modifiers;
-            [JsonIgnore] public float scale;
+            [JsonIgnore] public string modelName = null;
+            [JsonIgnore] public HashSet<string> modifiers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            [JsonIgnore] public float scale = 1.0f;
             // override filename when reading/writing
-            [JsonIgnore] public string fileName;
+            [JsonIgnore] public string fileName = null;
 
-            public float nameY;
-            public float eyeY;
-            public Vec3F32 collisionBounds;
-            public Vec3F32 pickingBoundsMin;
-            public Vec3F32 pickingBoundsMax;
-            public bool bobbing;
-            public bool pushes;
-            public bool usesHumanSkin;
-            public bool calcHumanAnims;
+            public float nameY = 32.5f;
+            public float eyeY = 26.0f;
+            public Vec3F32 collisionBounds = new Vec3F32 {
+                X = 8.6f,
+                Y = 28.1f,
+                Z = 8.6f
+            };
+            public Vec3F32 pickingBoundsMin = new Vec3F32 {
+                X = -8,
+                Y = 0,
+                Z = -4
+            };
+            public Vec3F32 pickingBoundsMax = new Vec3F32 {
+                X = 8,
+                Y = 32,
+                Z = 4
+            };
+            public bool bobbing = true;
+            public bool pushes = true;
+            public bool usesHumanSkin = true;
+            public bool calcHumanAnims = true;
 
-            public StoredCustomModel() {
-                this.modelName = null;
-                this.modifiers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                this.scale = 1.0f;
-                this.fileName = null;
+            // json deserialize will call our (name, ...) constructor if no
+            // 0 param () constructor exists
+            public StoredCustomModel() { }
 
-                this.nameY = 32.5f;
-                this.eyeY = 26.0f;
-                this.collisionBounds = new Vec3F32 {
-                    X = 8.6f,
-                    Y = 28.1f,
-                    Z = 8.6f
-                };
-                this.pickingBoundsMin = new Vec3F32 {
-                    X = -8,
-                    Y = 0,
-                    Z = -4
-                };
-                this.pickingBoundsMax = new Vec3F32 {
-                    X = 8,
-                    Y = 32,
-                    Z = 4
-                };
-                this.bobbing = true;
-                this.pushes = true;
-                this.usesHumanSkin = true;
-                this.calcHumanAnims = true;
-            }
-
-            public StoredCustomModel(string name, bool overrideFileName = false) : this() {
+            public StoredCustomModel(string name, bool overrideFileName = false) {
                 this.modelName = ModelInfo.GetRawModel(name);
                 this.scale = ModelInfo.GetRawScale(name);
 
@@ -121,12 +108,12 @@ namespace MCGalaxy {
                 return name;
             }
 
-            public void AddModifier(string modifier) {
-                this.modifiers.Add(modifier);
+            public bool AddModifier(string modifier) {
+                return this.modifiers.Add(modifier);
             }
 
-            public void RemoveModifier(string modifier) {
-                this.modifiers.Remove(modifier);
+            public bool RemoveModifier(string modifier) {
+                return this.modifiers.Remove(modifier);
             }
 
             public bool IsPersonal() {
@@ -271,15 +258,20 @@ namespace MCGalaxy {
                 File.Delete(GetBBPath());
             }
 
+            public void Undefine(Player p) {
+                UndefineModel(p, GetFullName());
+            }
+
             public void Define(Player p) {
                 var blockBench = ParseBlockBench();
                 var model = this.ToCustomModel(blockBench);
-                var parts = blockBench.ToCustomModelParts();
+                var parts = new List<Part>(blockBench.ToParts());
 
                 if (this.fileName == null) {
                     // only apply modifiers if we aren't a file override
+
                     if (this.modifiers.Contains("sit")) {
-                        CustomModelPart leg = null;
+                        Part leg = null;
                         foreach (var part in parts) {
                             if (
                                 part.anim == CustomModelAnim.LeftLeg ||
@@ -303,20 +295,105 @@ namespace MCGalaxy {
                                 part.min.Y -= lower;
                                 part.max.Y -= lower;
                                 part.rotationOrigin.Y -= lower;
-
-                                if (part.firstPersonArm) {
-                                    // remove first person arm because offset changed
-                                    part.firstPersonArm = false;
-                                }
                             }
                             model.eyeY -= lower;
                             model.nameY -= lower;
                         }
                     }
+
+                    // our entity is using a steve model, convert from SteveLayers to Steve
+                    if (this.modifiers.Contains("steve")) {
+                        // remove layer parts
+                        parts = parts.Where(part => !part.layer).ToList();
+
+                        // halve all uv "y coord"/v
+                        foreach (var part in parts) {
+                            part.v1[0] *= 2;
+                            part.v1[1] *= 2;
+                            part.v1[2] *= 2;
+                            part.v1[3] *= 2;
+                            part.v1[4] *= 2;
+                            part.v1[5] *= 2;
+
+                            part.v2[0] *= 2;
+                            part.v2[1] *= 2;
+                            part.v2[2] *= 2;
+                            part.v2[3] *= 2;
+                            part.v2[4] *= 2;
+                            part.v2[5] *= 2;
+                        }
+
+                        Action<Part, Part> f = (left, right) => {
+                            // there's only 1 leg/arm in the steve model
+                            left.u1 = (ushort[])right.u1.Clone();
+                            left.u2 = (ushort[])right.u2.Clone();
+                            left.v1 = (ushort[])right.v1.Clone();
+                            left.v2 = (ushort[])right.v2.Clone();
+
+                            // swap u's
+                            Swap(ref left.u1, ref left.u2);
+
+                            /* uv coords in order: top, bottom, front, back, left, right */
+                            // swap west and east
+                            Swap(ref left.u1[4], ref left.u1[5]);
+                            Swap(ref left.u2[4], ref left.u2[5]);
+                            Swap(ref left.v1[4], ref left.v1[5]);
+                            Swap(ref left.v2[4], ref left.v2[5]);
+                        };
+
+                        Part leftArm = parts.Find(part => part.skinLeftArm);
+                        Part rightArm = parts.Find(part => part.skinRightArm);
+                        if (leftArm != null && rightArm != null) {
+                            f(leftArm, rightArm);
+                        }
+
+                        Part leftLeg = parts.Find(part => part.skinLeftLeg);
+                        Part rightLeg = parts.Find(part => part.skinRightLeg);
+                        if (leftLeg != null && rightLeg != null) {
+                            f(leftLeg, rightLeg);
+                        }
+                    }
+
+                    if (this.modifiers.Contains("alex")) {
+                        foreach (var part in parts) {
+                            if (part.skinLeftArm || part.skinRightArm) {
+                                // top
+                                part.u1[0] -= 1;
+
+                                // down
+                                part.u1[1] -= 1;
+                                part.u2[1] -= 2;
+
+                                // north
+                                part.u1[2] -= 1;
+
+                                // south
+                                part.u1[3] -= 2;
+                                part.u2[3] -= 1;
+
+                                // east
+                                part.u1[5] -= 1;
+                                part.u2[5] -= 1;
+                            }
+                            if (part.skinLeftArm) {
+                                part.min.X += 1.0f / 16.0f;
+                            } else if (part.skinRightArm) {
+                                part.max.X -= 1.0f / 16.0f;
+                            }
+                        }
+                    }
                 }
 
-                DefineModel(p, model, parts);
+                DefineModel(p, model, parts.ToArray());
             }
+        }
+
+        class Part : CustomModelPart {
+            public bool layer = false;
+            public bool skinLeftArm = false;
+            public bool skinRightArm = false;
+            public bool skinLeftLeg = false;
+            public bool skinRightLeg = false;
         }
 
 
@@ -443,7 +520,7 @@ namespace MCGalaxy {
         }
 
         static void DefineModel(Player p, CustomModel model, CustomModelPart[] parts) {
-            // Logger.Log(LogType.SystemActivity, "DefineModel {0} {1}", p.name, model.name);
+            Logger.Log(LogType.SystemActivity, "DefineModel {0} {1}", p.name, model.name);
             if (!p.Supports(CpeExt.CustomModels)) return;
 
             var modelId = GetModelId(p, model.name, true).Value;
@@ -458,7 +535,7 @@ namespace MCGalaxy {
         }
 
         static void UndefineModel(Player p, string name) {
-            // Logger.Log(LogType.SystemActivity, "UndefineModel {0} {1}", p.name, name);
+            Logger.Log(LogType.SystemActivity, "UndefineModel {0} {1}", p.name, name);
             if (!p.Supports(CpeExt.CustomModels)) return;
 
             byte[] modelPacket = Packet.UndefineModel(GetModelId(p, name).Value);
@@ -469,6 +546,7 @@ namespace MCGalaxy {
         }
 
         //------------------------------------------------------------------ plugin interface
+
 
         CmdCustomModel command = null;
         public override void Load(bool startup) {
@@ -492,8 +570,10 @@ namespace MCGalaxy {
 
             OnBeforeChangeModelEvent.Register(OnBeforeChangeModel, Priority.Low);
 
-            if (!Directory.Exists(PublicModelsDirectory)) Directory.CreateDirectory(PublicModelsDirectory);
-            if (!Directory.Exists(PersonalModelsDirectory)) Directory.CreateDirectory(PersonalModelsDirectory);
+            OnPlayerCommandEvent.Register(OnPlayerCommand, Priority.Low);
+
+            Directory.CreateDirectory(PublicModelsDirectory);
+            Directory.CreateDirectory(PersonalModelsDirectory);
 
             int numModels = CreateMissingCCModels(false);
             int numPersonalModels = CreateMissingCCModels(true);
@@ -548,8 +628,11 @@ namespace MCGalaxy {
             lock (SentCustomModels) {
                 var sentModels = SentCustomModels[p.name];
                 if (sentModels.Contains(modelName)) {
-                    UndefineModel(p, modelName);
-                    sentModels.Remove(modelName);
+                    var storedModel = new StoredCustomModel(modelName);
+                    if (storedModel.Exists()) {
+                        storedModel.Undefine(p);
+                        sentModels.Remove(modelName);
+                    }
                 }
             }
         }
@@ -658,6 +741,8 @@ namespace MCGalaxy {
         static void OnBeforeChangeModel(Player p, byte entityID, string modelName) {
             // UpdateSkinType(p);
 
+            // TODO if someone does layers(c,b,a) it will DefineModel layers(a,b,c)
+            // and they won't see the change
             try {
                 // use CheckAddRemove because we also want to remove the previous model,
                 // if no one else is using it
@@ -674,20 +759,27 @@ namespace MCGalaxy {
             }
         }
 
+        static void OnPlayerCommand(Player p, string cmd, string args, CommandData data) {
+            if (cmd.CaselessEq("skin")) {
+                // p.SkinName
+                // Logger.Log(LogType.Warning, "skin {0}", p.name);
+            }
+        }
+
 
         //------------------------------------------------------------------ skin parsing
 
         // 32x64 (Steve) 64x64 (SteveLayers) 64x64 slim-arm (Alex)
         public enum SkinType { Steve, SteveLayers, Alex };
         // ruthlessly copy-paste-edited from ClassiCube Utils.c (thanks UnknownShadow200)
-        static bool IsAllColor(Color solid, Bitmap bmp, int x1, int y1, int width, int height, Player p) {
+        static bool IsAllColor(Color solid, Bitmap bmp, int x1, int y1, int width, int height, Entity e) {
             int x, y;
             for (y = y1; y < y1 + height; y++) {
                 for (x = x1; x < x1 + width; x++) {
-                    //p.Message("x is %b{0}%S, y is %b{1}%S.", x, y);
+                    //e.Message("x is %b{0}%S, y is %b{1}%S.", x, y);
                     Color col = bmp.GetPixel(x, y);
                     if (!col.Equals(solid)) {
-                        //p.Message("It's not {0}, it's {1}!", solid, col);
+                        //e.Message("It's not {0}, it's {1}!", solid, col);
                         return false;
                     }
                 }
@@ -695,19 +787,19 @@ namespace MCGalaxy {
             return true;
         }
         // ruthlessly copy-paste-edited from ClassiCube Utils.c (thanks UnknownShadow200)
-        static SkinType GetSkinType(Bitmap bmp, Player p) {
+        static SkinType GetSkinType(Bitmap bmp, Entity e) {
             Color col;
             int scale;
             if (bmp.Width == bmp.Height * 2) return SkinType.Steve;
-            if (bmp.Width != bmp.Height) return SkinType.Steve;
+            if (bmp.Width != bmp.Height) return SkinType.SteveLayers;
 
             scale = bmp.Width / 64;
             // Minecraft alex skins have this particular pixel with alpha of 0
             col = bmp.GetPixel(54 * scale, 20 * scale);
             if (col.A < 128) { return SkinType.Alex; }
             Color black = Color.FromArgb(0, 0, 0);
-            return IsAllColor(black, bmp, 54 * scale, 20 * scale, 2 * scale, 12 * scale, p)
-                && IsAllColor(black, bmp, 50 * scale, 16 * scale, 2 * scale, 4 * scale, p) ? SkinType.Alex : SkinType.SteveLayers;
+            return IsAllColor(black, bmp, 54 * scale, 20 * scale, 2 * scale, 12 * scale, e)
+                && IsAllColor(black, bmp, 50 * scale, 16 * scale, 2 * scale, 4 * scale, e) ? SkinType.Alex : SkinType.SteveLayers;
         }
 
         static Bitmap DecodeImage(byte[] data) {
@@ -724,11 +816,11 @@ namespace MCGalaxy {
                 return null;
             }
         }
-        static Bitmap DownloadSkin(Player p) {
-            string url = p.SkinName;
+        static Bitmap DownloadSkin(Entity e) {
+            string url = e.SkinName;
             Uri uri;
             if (!Uri.TryCreate(url, UriKind.Absolute, out uri)) {
-                url = "http://www.classicube.net/static/skins/" + p.truename + ".png";
+                url = "http://www.classicube.net/static/skins/" + e.SkinName + ".png";
                 if (!Uri.TryCreate(url, UriKind.Absolute, out uri)) {
                     return null;
                 }
@@ -737,10 +829,10 @@ namespace MCGalaxy {
             byte[] data = null;
             try {
                 using (WebClient client = HttpUtil.CreateWebClient()) {
-                    p.Message("Downloading file from: &f" + url);
+                    Logger.Log(LogType.Warning, "Downloading file from: &f" + url);
                     data = client.DownloadData(uri);
                 }
-                p.Message("Finished downloading.");
+                Logger.Log(LogType.Warning, "Finished downloading.");
             } catch (Exception ex) {
                 Logger.LogError("Error downloading", ex);
                 return null;
@@ -749,26 +841,48 @@ namespace MCGalaxy {
             return DecodeImage(data);
         }
 
-        static void UpdateSkinTypeCore(Player p) {
-            using (Bitmap skin = DownloadSkin(p)) {
-                if (skin != null) {
-                    p.Message("Skintype is %b{0}%S!", GetSkinType(skin, p));
-                } else {
-                    p.Message("Could not get your skin, assuming SkinType.Steve!");
+        static void UpdateSkinTypeCore(Entity e) {
+            using (Bitmap skin = DownloadSkin(e)) {
+                if (skin == null) {
+                    Logger.Log(LogType.Warning, "Could not get your skin, assuming SkinType.Steve!");
+                    return;
+                }
+
+                var skinType = GetSkinType(skin, e);
+                Logger.Log(LogType.Warning, "Skintype is %b{0}%S!", skinType);
+
+                var storedModel = new StoredCustomModel(e.Model);
+                if (!storedModel.Exists()) {
+                    Logger.Log(LogType.Warning, "%WYour current model isn't a Custom Model!");
+                    return;
+                }
+
+                storedModel.RemoveModifier("steve");
+                storedModel.RemoveModifier("alex");
+
+                if (skinType == SkinType.Steve) {
+                    storedModel.AddModifier("steve");
+                } else if (skinType == SkinType.Alex) {
+                    storedModel.AddModifier("alex");
+                }
+
+                if (!e.Model.CaselessEq(storedModel.GetFullNameWithScale())) {
+                    // e.HandleCommand("XModel", storedModel.GetFullNameWithScale(), e.DefaultCmdData);
+                    Entities.UpdateModel(e, storedModel.GetFullNameWithScale());
                 }
             }
         }
 
-        static void UpdateSkinType(Player p) {
+        static void UpdateSkinType(Entity e) {
             Thread thread = new Thread(() => {
                 try {
-                    UpdateSkinTypeCore(p);
+                    UpdateSkinTypeCore(e);
                 } catch (Exception ex) {
                     // Do not want it taking down the whole server if error occurs
                     Logger.LogError("Error figuring out skin type", ex);
                 }
             });
-            thread.Name = "CustomModels_UpdatePlayerSkinType";
+            thread.Name = "CustomModels_UpdateSkinType_" + e.SkinName;
             thread.Start();
         }
 
@@ -792,8 +906,8 @@ namespace MCGalaxy {
                 p.Message("%T/CustomModel sit");
                 p.Message("%H  Toggle sitting on your worn custom model.");
 
-                p.Message("%T/CustomModel list");
-                p.Message("%H  List all public custom models.");
+                p.Message("%T/CustomModel list [-own]");
+                p.Message("%H  List all public or personal custom models.");
 
                 p.Message("%T/CustomModel upload [model name] [bbmodel url]");
                 p.Message("%H  Upload a BlockBench file to use as your personal model.");
@@ -858,6 +972,9 @@ namespace MCGalaxy {
                         } else if (subCommand.CaselessEq("list")) {
                             // /CustomModel list
                             List(p, null);
+                            return;
+                        } else if (subCommand.CaselessEq("test")) {
+                            UpdateSkinType(p);
                             return;
                         }
                     } else if (args.Count >= 1) {
@@ -1205,7 +1322,7 @@ namespace MCGalaxy {
 
                     // try parsing now so that we throw and don't save the invalid file
                     // and notify the user of the error
-                    var parts = BlockBench.Parse(json).ToCustomModelParts();
+                    var parts = BlockBench.Parse(json).ToParts();
                     if (parts.Length > Packet.MaxCustomModelParts) {
                         p.Message(
                             "%WNumber of model parts ({0}) exceeds max of {1}!",
@@ -1225,7 +1342,10 @@ namespace MCGalaxy {
                             bool purePersonal = storedModel.IsPersonalPrimary();
                             float graceLength = purePersonal ? 8.0f : 16.0f;
 
-                            if (!SizeAllowed(parts[i].min, graceLength) || !SizeAllowed(parts[i].max, graceLength)) {
+                            if (
+                                !SizeAllowed(parts[i].min, graceLength) ||
+                                !SizeAllowed(parts[i].max, graceLength)
+                            ) {
                                 p.Message(
                                     "%WThe %b{0} cube in your list %Wis out of bounds.",
                                     ListicleNumber(i + 1)
@@ -1360,8 +1480,8 @@ namespace MCGalaxy {
                     return JsonConvert.SerializeObject(this);
                 }
 
-                public CustomModelPart[] ToCustomModelParts() {
-                    var parts = new List<CustomModelPart>();
+                public Part[] ToParts() {
+                    var parts = new List<Part>();
 
                     var elementByUuid = new Dictionary<string, Element>();
                     foreach (Element e in this.elements) {
@@ -1386,7 +1506,7 @@ namespace MCGalaxy {
                 void HandleGroup(
                     UuidOrGroup uuidOrGroup,
                     Dictionary<string, Element> elementByUuid,
-                    List<CustomModelPart> parts,
+                    List<Part> parts,
                     float[] rotation,
                     float[] origin,
                     bool visibility
@@ -1407,7 +1527,7 @@ namespace MCGalaxy {
                         //     Logger.Log(LogType.Warning, "rotation " + e.rotation[0] + " " + e.rotation[1] + " " + e.rotation[2]);
                         //     Logger.Log(LogType.Warning, "origin " + e.origin[0] + " " + e.origin[1] + " " + e.origin[2]);
                         // }
-                        var part = ToCustomModelPart(e);
+                        var part = ToPart(e);
                         if (part != null) {
                             parts.Add(part);
                         }
@@ -1436,7 +1556,7 @@ namespace MCGalaxy {
                     }
                 }
 
-                CustomModelPart ToCustomModelPart(Element e) {
+                Part ToPart(Element e) {
                     if (!e.visibility) {
                         return null;
                     }
@@ -1501,7 +1621,7 @@ namespace MCGalaxy {
                         e.faces.west.uv[3],
                     };
 
-                    var part = new CustomModelPart {
+                    var part = new Part {
                         min = min,
                         max = max,
                         u1 = u2,
@@ -1510,16 +1630,13 @@ namespace MCGalaxy {
                         v2 = v2,
                         rotationOrigin = rotationOrigin,
                         rotation = rotation,
-                        anim = CustomModelAnim.None,
-                        fullbright = false,
                     };
 
                     var name = e.name.Replace(" ", "");
                     foreach (var attr in name.SplitComma()) {
-                        float animModifier = 1.0f;
                         var colonSplit = attr.Split(':');
                         if (colonSplit.Length >= 2) {
-                            animModifier = float.Parse(colonSplit[1]);
+                            part.animModifier = float.Parse(colonSplit[1]);
                         }
 
                         if (attr.CaselessStarts("head")) {
@@ -1548,9 +1665,17 @@ namespace MCGalaxy {
                             part.fullbright = true;
                         } else if (attr.CaselessStarts("hand")) {
                             part.firstPersonArm = true;
+                        } else if (attr.CaselessStarts("layer")) {
+                            part.layer = true;
+                        } else if (attr.CaselessStarts("humanleftarm")) {
+                            part.skinLeftArm = true;
+                        } else if (attr.CaselessStarts("humanrightarm")) {
+                            part.skinRightArm = true;
+                        } else if (attr.CaselessStarts("humanleftleg")) {
+                            part.skinLeftLeg = true;
+                        } else if (attr.CaselessStarts("humanrightleg")) {
+                            part.skinRightLeg = true;
                         }
-
-                        part.animModifier = animModifier;
                     }
 
                     return part;
@@ -1686,6 +1811,13 @@ namespace MCGalaxy {
             }
         } // class BlockBench
 #pragma warning restore 0649
+
+        static void Swap<T>(ref T lhs, ref T rhs) {
+            T temp = lhs;
+            lhs = rhs;
+            rhs = temp;
+        }
+
     } // class CustomModelsPlugin
 
     static class ListExtension {
@@ -1695,4 +1827,5 @@ namespace MCGalaxy {
             return r;
         }
     }
+
 } // namespace MCGalaxy
