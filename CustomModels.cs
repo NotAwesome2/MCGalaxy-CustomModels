@@ -4,6 +4,7 @@
 //reference Newtonsoft.Json.dll
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -11,6 +12,7 @@ using System.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
 using MCGalaxy.Commands;
+using MCGalaxy.Events.EntityEvents;
 using MCGalaxy.Events.PlayerEvents;
 using MCGalaxy.Maths;
 using MCGalaxy.Network;
@@ -563,13 +565,11 @@ namespace MCGalaxy {
 
             OnPlayerConnectEvent.Register(OnPlayerConnect, Priority.Low);
             OnPlayerDisconnectEvent.Register(OnPlayerDisconnect, Priority.Low);
-
             OnJoiningLevelEvent.Register(OnJoiningLevel, Priority.Low);
             OnJoinedLevelEvent.Register(OnJoinedLevel, Priority.Low);
-
-            OnBeforeChangeModelEvent.Register(OnBeforeChangeModel, Priority.Low);
-
+            OnChangeModelPacketEvent.Register(OnBeforeChangeModel, Priority.Low);
             OnPlayerCommandEvent.Register(OnPlayerCommand, Priority.Low);
+            OnEntityChangeModelEvent.Register(OnEntityChangeModel, Priority.Low);
 
             Directory.CreateDirectory(PublicModelsDirectory);
             Directory.CreateDirectory(PersonalModelsDirectory);
@@ -598,7 +598,9 @@ namespace MCGalaxy {
             OnPlayerDisconnectEvent.Unregister(OnPlayerDisconnect);
             OnJoiningLevelEvent.Unregister(OnJoiningLevel);
             OnJoinedLevelEvent.Unregister(OnJoinedLevel);
-            OnBeforeChangeModelEvent.Unregister(OnBeforeChangeModel);
+            OnChangeModelPacketEvent.Unregister(OnBeforeChangeModel);
+            OnPlayerCommandEvent.Unregister(OnPlayerCommand);
+            OnEntityChangeModelEvent.Unregister(OnEntityChangeModel);
 
             if (command != null) {
                 Command.Unregister(command);
@@ -737,7 +739,7 @@ namespace MCGalaxy {
             }
         }
 
-        static void OnBeforeChangeModel(Player p, byte entityID, string modelName) {
+        static void OnBeforeChangeModel(Player p, byte entityID, ref string modelName) {
             // UpdateSkinType(p);
 
             // TODO if someone does layers(c,b,a) it will DefineModel layers(a,b,c)
@@ -760,13 +762,46 @@ namespace MCGalaxy {
 
         static void OnPlayerCommand(Player p, string cmd, string args, CommandData data) {
             if (cmd.CaselessEq("skin")) {
+                // TODO use first arg as target, and do Entities.UpdateModel
                 // p.SkinName
                 // Logger.Log(LogType.Warning, "skin {0}", p.name);
             }
         }
 
 
-        //------------------------------------------------------------------ skin parsing
+        //------------------------------------------------------------------ skin type parsing/model transforming
+
+        static Memoizer1<string, SkinType> MemoizedGetSkinType =
+            new Memoizer1<string, SkinType>(GetSkinType, new TimeSpan(0, 0, 1));
+
+        static void OnEntityChangeModel(Entity entity, ref string modelName) {
+            var storedModel = new StoredCustomModel(modelName);
+            if (storedModel.Exists()) {
+                try {
+                    var skinType = MemoizedGetSkinType.Get(entity.SkinName);
+
+                    storedModel.RemoveModifier("steve");
+                    storedModel.RemoveModifier("alex");
+
+                    if (skinType == SkinType.Steve) {
+                        storedModel.AddModifier("steve");
+                    } else if (skinType == SkinType.Alex) {
+                        storedModel.AddModifier("alex");
+                    }
+
+                    var name = storedModel.GetFullNameWithScale();
+                    if (!modelName.CaselessEq(name)) {
+                        // override what model was set!
+                        // Logger.Log(LogType.SystemActivity, "OVERRIDE MODEL {0} -> {1}", modelName, name);
+                        modelName = name;
+                    } else {
+                        // Logger.Log(LogType.SystemActivity, "already {0}", name);
+                    }
+                } catch (Exception) {
+                    // Logger.Log(LogType.Warning, "FAILED: {0}", e.Message);
+                }
+            }
+        }
 
         // 32x64 (Steve) 64x64 (SteveLayers) 64x64 slim-arm (Alex)
         public enum SkinType { Steve, SteveLayers, Alex };
@@ -827,32 +862,6 @@ namespace MCGalaxy {
 
             using (Bitmap bmp = FetchBitmap(uri)) {
                 return GetSkinType(bmp);
-            }
-        }
-
-        static void GetSkinTypeAndUpdateModel(Entity e) {
-            var skinType = GetSkinType(e.SkinName);
-            Logger.Log(LogType.Warning, "Skintype is %b{0}%S!", skinType);
-
-            var storedModel = new StoredCustomModel(e.Model);
-            if (!storedModel.Exists()) {
-                Logger.Log(LogType.Warning, "%WYour current model isn't a Custom Model!");
-                return;
-            }
-
-            storedModel.RemoveModifier("steve");
-            storedModel.RemoveModifier("alex");
-
-            if (skinType == SkinType.Steve) {
-                storedModel.AddModifier("steve");
-            } else if (skinType == SkinType.Alex) {
-                storedModel.AddModifier("alex");
-            }
-
-            var name = storedModel.GetFullNameWithScale();
-            if (!e.Model.CaselessEq(name)) {
-                // e.HandleCommand("XModel", name, e.DefaultCmdData);
-                Entities.UpdateModel(e, name);
             }
         }
 
@@ -1788,57 +1797,79 @@ namespace MCGalaxy {
             rhs = temp;
         }
 
-        class Memoizer1<IN, OUT> {
-            private Func<IN, OUT> fetch;
+        class Memoizer1<TKey, TValue> {
+            private Func<TKey, TValue> fetch;
             private TimeSpan? cacheLifeTime;
 
-            public Memoizer1(Func<IN, OUT> fetch, TimeSpan? cacheLifeTime = null) {
+            public Memoizer1(Func<TKey, TValue> fetch, TimeSpan? cacheLifeTime = null) {
                 this.fetch = fetch;
                 this.cacheLifeTime = cacheLifeTime;
             }
 
             private struct CacheEntry {
-                public OUT value;
-                public DateTime dieTime;
+                public TValue value;
+                public System.Timers.Timer deathTimer;
             }
-            private Dictionary<IN, CacheEntry> cache = new Dictionary<IN, CacheEntry>();
-            private Dictionary<IN, object> lockHandles = new Dictionary<IN, object>();
-            private static object masterLockHandle = new object();
-            public OUT Get(IN key) {
 
-                object lockHandle;
-                lock (masterLockHandle) {
-                    if (!lockHandles.TryGetValue(key, out lockHandle)) {
-                        lockHandle = new object();
-                        lockHandles.Add(key, lockHandle);
-                    }
-                }
+            // we want to lock per key instead of for all access on the cache directory
+            private ConcurrentDictionary<TKey, object> cacheLocks = new ConcurrentDictionary<TKey, object>();
+            private object GetCacheLock(TKey key) {
+                return cacheLocks.GetOrAdd(key, (_) => new object());
+            }
 
-                lock (lockHandle) {
+            private ConcurrentDictionary<TKey, CacheEntry> cache = new ConcurrentDictionary<TKey, CacheEntry>();
+            public TValue Get(TKey key) {
+                lock (GetCacheLock(key)) {
                     CacheEntry entry;
                     if (cache.TryGetValue(key, out entry)) {
-                        if (cacheLifeTime.HasValue) {
-                            if (entry.dieTime <= DateTime.UtcNow) {
-                                return entry.value;
-                            }
-                        } else {
-                            return entry.value;
-                        }
+                        // Console.WriteLine("Hit {0}", key);
+                        return entry.value;
                     }
 
-                    OUT value = Fetch(key);
+                    TValue value = Fetch(key);
                     entry.value = value;
                     if (cacheLifeTime.HasValue) {
-                        entry.dieTime = DateTime.UtcNow + cacheLifeTime.Value;
+                        var timer = new System.Timers.Timer(cacheLifeTime.Value.TotalMilliseconds);
+                        timer.AutoReset = false;
+                        timer.Elapsed += (obj, elapsedEventArgs) => {
+                            timer.Stop();
+                            timer.Dispose();
+
+                            // Console.WriteLine("Removing {0}", key);
+                            lock (GetCacheLock(key)) {
+                                cache.TryRemove(key, out _);
+                            }
+                        };
+                        timer.Start();
+                        entry.deathTimer = timer;
                     }
-                    cache.Add(key, entry);
+                    cache.TryAdd(key, entry);
 
                     return value;
                 }
             }
 
-            public OUT Fetch(IN key) {
+            public TValue Fetch(TKey key) {
+                // Console.WriteLine("Fetching {0}", key);
                 return this.fetch.Invoke(key);
+            }
+
+            public void InvalidateAll() {
+                foreach (var key in cache.Keys.ToArray()) {
+                    Invalidate(key);
+                }
+            }
+
+            public void Invalidate(TKey key) {
+                lock (GetCacheLock(key)) {
+                    CacheEntry entry;
+                    if (cache.TryRemove(key, out entry)) {
+                        if (entry.deathTimer != null) {
+                            entry.deathTimer.Stop();
+                            entry.deathTimer.Dispose();
+                        }
+                    }
+                }
             }
         }
 
