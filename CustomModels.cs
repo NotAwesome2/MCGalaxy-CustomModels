@@ -10,7 +10,6 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
-using System.Threading;
 using MCGalaxy.Commands;
 using MCGalaxy.Events.PlayerEvents;
 using MCGalaxy.Maths;
@@ -772,7 +771,7 @@ namespace MCGalaxy {
         // 32x64 (Steve) 64x64 (SteveLayers) 64x64 slim-arm (Alex)
         public enum SkinType { Steve, SteveLayers, Alex };
         // ruthlessly copy-paste-edited from ClassiCube Utils.c (thanks UnknownShadow200)
-        static bool IsAllColor(Color solid, Bitmap bmp, int x1, int y1, int width, int height, Entity e) {
+        static bool IsAllColor(Color solid, Bitmap bmp, int x1, int y1, int width, int height) {
             int x, y;
             for (y = y1; y < y1 + height; y++) {
                 for (x = x1; x < x1 + width; x++) {
@@ -786,8 +785,9 @@ namespace MCGalaxy {
             }
             return true;
         }
+
         // ruthlessly copy-paste-edited from ClassiCube Utils.c (thanks UnknownShadow200)
-        static SkinType GetSkinType(Bitmap bmp, Entity e) {
+        static SkinType GetSkinType(Bitmap bmp) {
             Color col;
             int scale;
             if (bmp.Width == bmp.Height * 2) return SkinType.Steve;
@@ -798,93 +798,62 @@ namespace MCGalaxy {
             col = bmp.GetPixel(54 * scale, 20 * scale);
             if (col.A < 128) { return SkinType.Alex; }
             Color black = Color.FromArgb(0, 0, 0);
-            return IsAllColor(black, bmp, 54 * scale, 20 * scale, 2 * scale, 12 * scale, e)
-                && IsAllColor(black, bmp, 50 * scale, 16 * scale, 2 * scale, 4 * scale, e) ? SkinType.Alex : SkinType.SteveLayers;
+            return IsAllColor(black, bmp, 54 * scale, 20 * scale, 2 * scale, 12 * scale)
+                && IsAllColor(black, bmp, 50 * scale, 16 * scale, 2 * scale, 4 * scale) ? SkinType.Alex : SkinType.SteveLayers;
         }
 
-        static Bitmap DecodeImage(byte[] data) {
-            Bitmap bmp = null;
-            try {
-                bmp = new Bitmap(new MemoryStream(data));
-                int width = bmp.Width;
-                // sometimes Mono will return an invalid bitmap instance that throws ArgumentNullException,
-                // so we make sure to check for that here rather than later.
-                return bmp;
-            } catch (Exception ex) {
-                Logger.LogError("Error reading bitmap", ex);
-                if (bmp != null) bmp.Dispose();
-                return null;
+        static Bitmap FetchBitmap(Uri uri) {
+            using (WebClient client = HttpUtil.CreateWebClient()) {
+                var data = client.DownloadData(uri);
+                return new Bitmap(new MemoryStream(data));
             }
         }
-        static Bitmap DownloadSkin(Entity e) {
-            string url = e.SkinName;
+
+        static Uri GetSkinUrl(string skinName) {
             Uri uri;
-            if (!Uri.TryCreate(url, UriKind.Absolute, out uri)) {
-                url = "http://www.classicube.net/static/skins/" + e.SkinName + ".png";
-                if (!Uri.TryCreate(url, UriKind.Absolute, out uri)) {
-                    return null;
-                }
+            if (Uri.TryCreate(skinName, UriKind.Absolute, out uri)) {
+                return uri;
             }
 
-            byte[] data = null;
-            try {
-                using (WebClient client = HttpUtil.CreateWebClient()) {
-                    Logger.Log(LogType.Warning, "Downloading file from: &f" + url);
-                    data = client.DownloadData(uri);
-                }
-                Logger.Log(LogType.Warning, "Finished downloading.");
-            } catch (Exception ex) {
-                Logger.LogError("Error downloading", ex);
-                return null;
+            if (Uri.TryCreate("http://www.classicube.net/static/skins/" + skinName + ".png", UriKind.Absolute, out uri)) {
+                return uri;
             }
 
-            return DecodeImage(data);
+            throw new Exception("couldn't convert " + skinName + " to a Uri");
         }
 
-        static void UpdateSkinTypeCore(Entity e) {
-            using (Bitmap skin = DownloadSkin(e)) {
-                if (skin == null) {
-                    Logger.Log(LogType.Warning, "Could not get your skin, assuming SkinType.Steve!");
-                    return;
-                }
+        static SkinType GetSkinType(string skinName) {
+            var uri = GetSkinUrl(skinName);
 
-                var skinType = GetSkinType(skin, e);
-                Logger.Log(LogType.Warning, "Skintype is %b{0}%S!", skinType);
-
-                var storedModel = new StoredCustomModel(e.Model);
-                if (!storedModel.Exists()) {
-                    Logger.Log(LogType.Warning, "%WYour current model isn't a Custom Model!");
-                    return;
-                }
-
-                storedModel.RemoveModifier("steve");
-                storedModel.RemoveModifier("alex");
-
-                if (skinType == SkinType.Steve) {
-                    storedModel.AddModifier("steve");
-                } else if (skinType == SkinType.Alex) {
-                    storedModel.AddModifier("alex");
-                }
-
-                var name = storedModel.GetFullNameWithScale();
-                if (!e.Model.CaselessEq(name)) {
-                    // e.HandleCommand("XModel", name, e.DefaultCmdData);
-                    Entities.UpdateModel(e, name);
-                }
+            using (Bitmap bmp = FetchBitmap(uri)) {
+                return GetSkinType(bmp);
             }
         }
 
-        static void UpdateSkinType(Entity e) {
-            Thread thread = new Thread(() => {
-                try {
-                    UpdateSkinTypeCore(e);
-                } catch (Exception ex) {
-                    // Do not want it taking down the whole server if error occurs
-                    Logger.LogError("Error figuring out skin type", ex);
-                }
-            });
-            thread.Name = "CustomModels_UpdateSkinType_" + e.SkinName;
-            thread.Start();
+        static void GetSkinTypeAndUpdateModel(Entity e) {
+            var skinType = GetSkinType(e.SkinName);
+            Logger.Log(LogType.Warning, "Skintype is %b{0}%S!", skinType);
+
+            var storedModel = new StoredCustomModel(e.Model);
+            if (!storedModel.Exists()) {
+                Logger.Log(LogType.Warning, "%WYour current model isn't a Custom Model!");
+                return;
+            }
+
+            storedModel.RemoveModifier("steve");
+            storedModel.RemoveModifier("alex");
+
+            if (skinType == SkinType.Steve) {
+                storedModel.AddModifier("steve");
+            } else if (skinType == SkinType.Alex) {
+                storedModel.AddModifier("alex");
+            }
+
+            var name = storedModel.GetFullNameWithScale();
+            if (!e.Model.CaselessEq(name)) {
+                // e.HandleCommand("XModel", name, e.DefaultCmdData);
+                Entities.UpdateModel(e, name);
+            }
         }
 
         //------------------------------------------------------------------ commands
@@ -974,9 +943,9 @@ namespace MCGalaxy {
                             // /CustomModel list
                             List(p, null);
                             return;
-                        } else if (subCommand.CaselessEq("fixskin")) {
-                            UpdateSkinType(p);
-                            return;
+                            // } else if (subCommand.CaselessEq("fixskin")) {
+                            //     UpdateSkinType(p);
+                            //     return;
                         }
                     } else if (args.Count >= 1) {
                         var modelName = TargetModelName(p, data, args.PopFront());
@@ -1818,6 +1787,61 @@ namespace MCGalaxy {
             lhs = rhs;
             rhs = temp;
         }
+
+        class Memoizer1<IN, OUT> {
+            private Func<IN, OUT> fetch;
+            private TimeSpan? cacheLifeTime;
+
+            public Memoizer1(Func<IN, OUT> fetch, TimeSpan? cacheLifeTime = null) {
+                this.fetch = fetch;
+                this.cacheLifeTime = cacheLifeTime;
+            }
+
+            private struct CacheEntry {
+                public OUT value;
+                public DateTime dieTime;
+            }
+            private Dictionary<IN, CacheEntry> cache = new Dictionary<IN, CacheEntry>();
+            private Dictionary<IN, object> lockHandles = new Dictionary<IN, object>();
+            private static object masterLockHandle = new object();
+            public OUT Get(IN key) {
+
+                object lockHandle;
+                lock (masterLockHandle) {
+                    if (!lockHandles.TryGetValue(key, out lockHandle)) {
+                        lockHandle = new object();
+                        lockHandles.Add(key, lockHandle);
+                    }
+                }
+
+                lock (lockHandle) {
+                    CacheEntry entry;
+                    if (cache.TryGetValue(key, out entry)) {
+                        if (cacheLifeTime.HasValue) {
+                            if (entry.dieTime <= DateTime.UtcNow) {
+                                return entry.value;
+                            }
+                        } else {
+                            return entry.value;
+                        }
+                    }
+
+                    OUT value = Fetch(key);
+                    entry.value = value;
+                    if (cacheLifeTime.HasValue) {
+                        entry.dieTime = DateTime.UtcNow + cacheLifeTime.Value;
+                    }
+                    cache.Add(key, entry);
+
+                    return value;
+                }
+            }
+
+            public OUT Fetch(IN key) {
+                return this.fetch.Invoke(key);
+            }
+        }
+
 
     } // class CustomModelsPlugin
 
