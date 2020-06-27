@@ -296,6 +296,11 @@ namespace MCGalaxy {
                                 part.min.Y -= lower;
                                 part.max.Y -= lower;
                                 part.rotationOrigin.Y -= lower;
+
+                                if (part.firstPersonArm) {
+                                    // remove first person arm because offset changed
+                                    part.firstPersonArm = false;
+                                }
                             }
                             model.eyeY -= lower;
                             model.nameY -= lower;
@@ -760,14 +765,6 @@ namespace MCGalaxy {
             }
         }
 
-        static void OnPlayerCommand(Player p, string cmd, string args, CommandData data) {
-            if (cmd.CaselessEq("skin")) {
-                // TODO use first arg as target, and do Entities.UpdateModel
-                // p.SkinName
-                // Logger.Log(LogType.Warning, "skin {0}", p.name);
-            }
-        }
-
 
         //------------------------------------------------------------------ skin type parsing/model transforming
 
@@ -800,6 +797,18 @@ namespace MCGalaxy {
                 } catch (Exception) {
                     // Logger.Log(LogType.Warning, "FAILED: {0}", e.Message);
                 }
+            }
+        }
+
+        static void OnPlayerCommand(Player p, string cmd, string args, CommandData data) {
+
+            if (cmd.CaselessEq("model")) {
+                // p.HandleCommand("Model", args, data);
+                // p.cancelcommand = true;
+            } else if (cmd.CaselessEq("skin")) {
+                // TODO use first arg as target, and do Entities.UpdateModel
+                // p.SkinName
+                // Logger.Log(LogType.Warning, "skin {0}", p.name);
             }
         }
 
@@ -952,9 +961,6 @@ namespace MCGalaxy {
                             // /CustomModel list
                             List(p, null);
                             return;
-                            // } else if (subCommand.CaselessEq("fixskin")) {
-                            //     UpdateSkinType(p);
-                            //     return;
                         }
                     } else if (args.Count >= 1) {
                         var modelName = TargetModelName(p, data, args.PopFront());
