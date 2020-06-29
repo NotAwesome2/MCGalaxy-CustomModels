@@ -6,6 +6,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -115,6 +116,17 @@ namespace MCGalaxy {
 
             public bool RemoveModifier(string modifier) {
                 return this.modifiers.Remove(modifier);
+            }
+
+            public void ApplySkinType(SkinType skinType) {
+                this.RemoveModifier("steve");
+                this.RemoveModifier("alex");
+
+                if (skinType == SkinType.Steve) {
+                    this.AddModifier("steve");
+                } else if (skinType == SkinType.Alex) {
+                    this.AddModifier("alex");
+                }
             }
 
             public bool IsPersonal() {
@@ -526,7 +538,7 @@ namespace MCGalaxy {
         }
 
         static void DefineModel(Player p, CustomModel model, CustomModelPart[] parts) {
-            // Logger.Log(LogType.SystemActivity, "DefineModel {0} {1}", p.name, model.name);
+            Debug("DefineModel {0} {1}", p.name, model.name);
             if (!p.Supports(CpeExt.CustomModels)) return;
 
             var modelId = GetModelId(p, model.name, true).Value;
@@ -541,7 +553,7 @@ namespace MCGalaxy {
         }
 
         static void UndefineModel(Player p, string name) {
-            // Logger.Log(LogType.SystemActivity, "UndefineModel {0} {1}", p.name, name);
+            Debug("UndefineModel {0} {1}", p.name, name);
             if (!p.Supports(CpeExt.CustomModels)) return;
 
             byte[] modelPacket = Packet.UndefineModel(GetModelId(p, name).Value);
@@ -574,7 +586,6 @@ namespace MCGalaxy {
             OnJoinedLevelEvent.Register(OnJoinedLevel, Priority.Low);
             OnSendingModelEvent.Register(OnSendingModel, Priority.Low);
             OnPlayerCommandEvent.Register(OnPlayerCommand, Priority.Low);
-            // OnEntityChangeModelEvent.Register(OnEntityChangeModel, Priority.Low);
 
             Directory.CreateDirectory(PublicModelsDirectory);
             Directory.CreateDirectory(PersonalModelsDirectory);
@@ -605,7 +616,6 @@ namespace MCGalaxy {
             OnJoinedLevelEvent.Unregister(OnJoinedLevel);
             OnSendingModelEvent.Unregister(OnSendingModel);
             OnPlayerCommandEvent.Unregister(OnPlayerCommand);
-            // OnEntityChangeModelEvent.Unregister(OnEntityChangeModel);
 
             if (command != null) {
                 Command.Unregister(command);
@@ -643,8 +653,8 @@ namespace MCGalaxy {
             }
         }
 
-        // removes all unused models from player, and
-        // sends all missing models in level to player
+        // sends all missing models in level to player,
+        // and removes all unused models from player
         static void CheckAddRemove(Player p, Level level) {
             var visibleModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             visibleModels.Add(ModelInfo.GetRawModel(p.Model));
@@ -747,74 +757,58 @@ namespace MCGalaxy {
             }
         }
 
-        static void OnSendingModel(Entity e, ref string model, Player dst) {
-            // Logger.Log(LogType.SystemActivity, "CustomModels OnSendingModel {0} {1}", model, dst.name);
-            // UpdateSkinType(p);
-
-            // TODO if someone does layers(c,b,a) it will DefineModel layers(a,b,c)
-            // and they won't see the change
-            try {
-                // use CheckAddRemove because we also want to remove the previous model,
-                // if no one else is using it
-                CheckAddRemove(dst, dst.level);
-            } catch (Exception exception) {
-                Logger.Log(
-                    LogType.Error,
-                    "CustomModels OnSendingModel {0} {1}: {2}\n{3}",
-                    dst.name,
-                    model,
-                    exception.Message,
-                    exception.StackTrace
-                );
-            }
-        }
-
-
-        //------------------------------------------------------------------ skin type parsing/model transforming
 
         static Memoizer1<string, SkinType> MemoizedGetSkinType =
-            new Memoizer1<string, SkinType>(GetSkinType, new TimeSpan(0, 0, 1));
+            new Memoizer1<string, SkinType>(
+                GetSkinType,
+                // cache for 1 hour
+                new TimeSpan(1, 0, 0),
+                (ex) => {
+                    // default to SteveLayers if failed to GetSkinType
+                    return SkinType.SteveLayers;
+                });
 
-        static void OnEntityChangeModel(Entity entity, ref string modelName) {
+        // Called when model is being sent to a player.
+        static void OnSendingModel(Entity e, ref string modelName, Player dst) {
+            Debug("CustomModels OnSendingModel {0}: {1}", dst.name, modelName);
+
             var storedModel = new StoredCustomModel(modelName);
             if (storedModel.Exists()) {
-                try {
-                    var skinType = MemoizedGetSkinType.Get(entity.SkinName);
+                // if this is a custom model
 
-                    storedModel.RemoveModifier("steve");
-                    storedModel.RemoveModifier("alex");
+                // check if we need to apply skin type transforms
+                var skinType = MemoizedGetSkinType.Get(e.SkinName);
+                storedModel.ApplySkinType(skinType);
 
-                    if (skinType == SkinType.Steve) {
-                        storedModel.AddModifier("steve");
-                    } else if (skinType == SkinType.Alex) {
-                        storedModel.AddModifier("alex");
-                    }
-
-                    var name = storedModel.GetFullNameWithScale();
-                    if (!modelName.CaselessEq(name)) {
-                        // override what model was set!
-                        // Logger.Log(LogType.SystemActivity, "OVERRIDE MODEL {0} -> {1}", modelName, name);
-                        modelName = name;
-                    } else {
-                        // Logger.Log(LogType.SystemActivity, "already {0}", name);
-                    }
-                } catch (Exception) {
-                    // Logger.Log(LogType.Warning, "FAILED: {0}", e.Message);
+                var newModelName = storedModel.GetFullNameWithScale();
+                if (!modelName.CaselessEq(newModelName)) {
+                    Debug("OVERRIDE MODEL {0} -> {1}", modelName, newModelName);
+                    // override what model was set!
+                    modelName = newModelName;
+                    // also SetModel so our CheckAddRemove can see e.Model
+                    e.SetModel(modelName);
+                } else {
+                    Debug("already {0}", newModelName);
                 }
+
+
+                // make sure the model is already defined for player
+                // before we send the ChangeModel packet
+                CheckAddRemove(dst, dst.level);
             }
         }
 
         static void OnPlayerCommand(Player p, string cmd, string args, CommandData data) {
-
-            if (cmd.CaselessEq("model")) {
-                // p.HandleCommand("Model", args, data);
-                // p.cancelcommand = true;
-            } else if (cmd.CaselessEq("skin")) {
-                // TODO use first arg as target, and do p.UpdateModel
-                // p.SkinName
-                // Logger.Log(LogType.Warning, "skin {0}", p.name);
+            if (cmd.CaselessEq("skin")) {
+                var splitArgs = args.SplitSpaces();
+                if (splitArgs.Length > 0) {
+                    var last = splitArgs[splitArgs.Length - 1];
+                    MemoizedGetSkinType.Invalidate(last);
+                }
             }
         }
+
+        //------------------------------------------------------------------ skin type parsing/model transforming
 
         // 32x64 (Steve) 64x64 (SteveLayers) 64x64 slim-arm (Alex)
         public enum SkinType { Steve, SteveLayers, Alex };
@@ -851,6 +845,7 @@ namespace MCGalaxy {
         }
 
         static Bitmap FetchBitmap(Uri uri) {
+            // TODO set timeout!
             using (WebClient client = HttpUtil.CreateWebClient()) {
                 var data = client.DownloadData(uri);
                 return new Bitmap(new MemoryStream(data));
@@ -1810,10 +1805,16 @@ namespace MCGalaxy {
         class Memoizer1<TKey, TValue> {
             private Func<TKey, TValue> fetch;
             private TimeSpan? cacheLifeTime;
+            private Func<Exception, TValue> exceptionHandler;
 
-            public Memoizer1(Func<TKey, TValue> fetch, TimeSpan? cacheLifeTime = null) {
+            public Memoizer1(
+                Func<TKey, TValue> fetch,
+                TimeSpan? cacheLifeTime = null,
+                Func<Exception, TValue> exceptionHandler = null
+            ) {
                 this.fetch = fetch;
                 this.cacheLifeTime = cacheLifeTime;
+                this.exceptionHandler = exceptionHandler;
             }
 
             private struct CacheEntry {
@@ -1832,7 +1833,7 @@ namespace MCGalaxy {
                 lock (GetCacheLock(key)) {
                     CacheEntry entry;
                     if (cache.TryGetValue(key, out entry)) {
-                        // Console.WriteLine("Hit {0}", key);
+                        Debug("Memoizer1 Hit {0}", key);
                         return entry.value;
                     }
 
@@ -1845,7 +1846,7 @@ namespace MCGalaxy {
                             timer.Stop();
                             timer.Dispose();
 
-                            // Console.WriteLine("Removing {0}", key);
+                            Debug("Memoizer1 Removing {0}", key);
                             lock (GetCacheLock(key)) {
                                 cache.TryRemove(key, out _);
                             }
@@ -1859,9 +1860,41 @@ namespace MCGalaxy {
                 }
             }
 
+            // this will still block from our lock!
+            // maybe a flag saying whether or not we're currently fetching
+            // public bool GetCached(TKey key, out TValue value) {
+            //     lock (GetCacheLock(key)) {
+            //         CacheEntry entry;
+            //         if (cache.TryGetValue(key, out entry)) {
+            //             Debug("Memoizer1 Hit {0}", key);
+            //             value = entry.value;
+            //             return true;
+            //         }
+            //         value = default(TValue);
+            //         return false;
+            //     }
+            // }
+
             public TValue Fetch(TKey key) {
-                // Console.WriteLine("Fetching {0}", key);
-                return this.fetch.Invoke(key);
+                TValue ret;
+                bool threw = false;
+                var stopwatch = Stopwatch.StartNew();
+                try {
+                    ret = this.fetch.Invoke(key);
+                    stopwatch.Stop();
+                } catch (Exception ex) {
+                    stopwatch.Stop();
+                    threw = true;
+                    if (this.exceptionHandler != null) {
+                        ret = this.exceptionHandler.Invoke(ex);
+                    } else {
+                        throw ex;
+                    }
+                } finally {
+                    Debug("Memoizer1 Fetch {0} took {1}s" + (threw ? " (threw)" : ""), key, stopwatch.Elapsed.TotalSeconds);
+                }
+
+                return ret;
             }
 
             public void InvalidateAll() {
@@ -1881,6 +1914,24 @@ namespace MCGalaxy {
                     }
                 }
             }
+        }
+
+        private static bool debug = false;
+        private static void Debug(string format, object arg0, object arg1, object arg2) {
+            if (!debug) return;
+            Logger.Log(LogType.Debug, format, arg0, arg1, arg2);
+        }
+        private static void Debug(string format, object arg0, object arg1) {
+            if (!debug) return;
+            Logger.Log(LogType.Debug, format, arg0, arg1);
+        }
+        private static void Debug(string format, object arg0) {
+            if (!debug) return;
+            Logger.Log(LogType.Debug, format, arg0);
+        }
+        private static void Debug(string format) {
+            if (!debug) return;
+            Logger.Log(LogType.Debug, format);
         }
 
 
