@@ -165,8 +165,8 @@ namespace MCGalaxy {
             BlockBench.JsonRoot ParseBlockBench() {
                 string path = GetBBPath();
                 string contentsBB = File.ReadAllText(path);
-                var blockBench = BlockBench.Parse(contentsBB);
-                return blockBench;
+                var jsonRoot = BlockBench.Parse(contentsBB);
+                return jsonRoot;
             }
 
             CustomModel ToCustomModel(BlockBench.JsonRoot blockBench) {
@@ -1277,28 +1277,7 @@ namespace MCGalaxy {
                     }
                 }
             }
-            //measured in pixels where 16 pixels = 1 block's length
-            public const float maxWidth = 16;
-            public const float maxHeight = 32;
-            // graceLength is how far (in pixels) you can extend past max width/height on all sides
-            static bool SizeAllowed(Vec3F32 boxCorner, float graceLength) {
-                //convert to block-unit to match boxCorner
-                const float maxWidthB = maxWidth / 16f;
-                const float maxHeightB = maxHeight / 16f;
-                float graceLengthB = graceLength / 16f;
-                if (
-                    boxCorner.Y < -graceLengthB ||
-                    boxCorner.Y > maxHeightB + graceLengthB ||
 
-                    boxCorner.X < -((maxWidthB / 2) + graceLengthB) ||
-                    boxCorner.X > (maxWidthB / 2) + graceLengthB ||
-                    boxCorner.Z < -((maxWidthB / 2) + graceLengthB) ||
-                    boxCorner.Z > (maxWidthB / 2) + graceLengthB
-                ) {
-                    return false;
-                }
-                return true;
-            }
             void Upload(Player p, string modelName, string url) {
                 var bytes = HttpUtil.DownloadData(url, p);
                 if (bytes != null) {
@@ -1306,51 +1285,12 @@ namespace MCGalaxy {
 
                     // try parsing now so that we throw and don't save the invalid file
                     // and notify the user of the error
-                    var parts = BlockBench.Parse(json).ToParts();
-                    if (parts.Length > Packet.MaxCustomModelParts) {
-                        p.Message(
-                            "%WNumber of model parts ({0}) exceeds max of {1}!",
-                            parts.Length,
-                            Packet.MaxCustomModelParts
-                        );
+                    if (!BlockBench.IsValid(json, p, modelName)) {
                         return;
                     }
 
                     // override filename because file might not exist yet
                     var storedModel = new StoredCustomModel(modelName, true);
-
-                    //only do size check if they can't upload global models
-                    if (!CommandExtraPerms.Find("CustomModel", 1).UsableBy(p.Rank)) {
-                        for (int i = 0; i < parts.Length; i++) {
-                            // Models can be 1 block bigger if they aren't a purely personal model
-                            bool purePersonal = storedModel.IsPersonalPrimary();
-                            float graceLength = purePersonal ? 8.0f : 16.0f;
-
-                            if (
-                                !SizeAllowed(parts[i].min, graceLength) ||
-                                !SizeAllowed(parts[i].max, graceLength)
-                            ) {
-                                p.Message(
-                                    "%WThe %b{0} cube in your list %Wis out of bounds.",
-                                    ListicleNumber(i + 1)
-                                );
-                                p.Message(
-                                    "%WYour {0} may not be larger than %b{1}%W pixels tall or %b{2}%W pixels wide.",
-                                    purePersonal ? "personal model" : "model",
-                                    maxHeight + graceLength,
-                                    maxWidth + graceLength * 2,
-                                    graceLength
-                                );
-
-                                if (purePersonal) {
-                                    p.Message("These limits only apply to your personal \"%b{0}%S\" model.", p.name.ToLower());
-                                    p.Message("Models you upload with other names (e.g, /cm {0}bike upload) can be slightly larger.", p.name.ToLower());
-                                }
-                                return;
-                            }
-                        }
-                    }
-
                     storedModel.WriteBBFile(json);
 
                     if (!storedModel.Exists()) {
@@ -1374,27 +1314,6 @@ namespace MCGalaxy {
                 }
                 storedCustomModel.Delete();
                 p.Message("%TCustom Model %S{0} %Wdeleted!", modelName);
-            }
-
-            //shrug
-            static string ListicleNumber(int n) {
-                if (n > 3 && n < 21) { return n + "th"; }
-                string suffix;
-                switch (n % 10) {
-                    case 1:
-                        suffix = "st";
-                        break;
-                    case 2:
-                        suffix = "nd";
-                        break;
-                    case 3:
-                        suffix = "rd";
-                        break;
-                    default:
-                        suffix = "th";
-                        break;
-                }
-                return n + suffix;
             }
 
             void List(Player p, string playerName = null) {
@@ -1453,6 +1372,84 @@ namespace MCGalaxy {
         // ignore "Field is never assigned to"
 #pragma warning disable 0649
         class BlockBench {
+
+            public static bool IsValid(string json, Player p, string modelName) {
+                var jsonRoot = Parse(json);
+                var parts = jsonRoot.ToParts();
+
+                if (!jsonRoot.IsValid(p)) {
+                    return false;
+                }
+
+                if (parts.Length > Packet.MaxCustomModelParts) {
+                    p.Message(
+                        "%WNumber of model parts ({0}) exceeds max of {1}!",
+                        parts.Length,
+                        Packet.MaxCustomModelParts
+                    );
+                    return false;
+                }
+
+                // only do size check if they can't upload global models
+                if (!CommandExtraPerms.Find("CustomModel", 1).UsableBy(p.Rank)) {
+                    for (int i = 0; i < parts.Length; i++) {
+                        // Models can be 1 block bigger if they aren't a purely personal model
+                        bool purePersonal = new StoredCustomModel(modelName).IsPersonalPrimary();
+                        float graceLength = purePersonal ? 8.0f : 16.0f;
+
+                        if (
+                            !SizeAllowed(parts[i].min, graceLength) ||
+                            !SizeAllowed(parts[i].max, graceLength)
+                        ) {
+                            p.Message(
+                                "%WThe %b{0} cube in your list %Wis out of bounds.",
+                                ListicleNumber(i + 1)
+                            );
+                            p.Message(
+                                "%WYour {0} may not be larger than %b{1}%W pixels tall or %b{2}%W pixels wide.",
+                                purePersonal ? "personal model" : "model",
+                                maxHeight + graceLength,
+                                maxWidth + graceLength * 2,
+                                graceLength
+                            );
+
+                            if (purePersonal) {
+                                p.Message("These limits only apply to your personal \"%b{0}%S\" model.", p.name.ToLower());
+                                p.Message("Models you upload with other names (e.g, /cm {0}bike upload) can be slightly larger.", p.name.ToLower());
+                            }
+                            return false;
+                        }
+                    }
+                }
+
+                return true;
+            }
+
+
+            //measured in pixels where 16 pixels = 1 block's length
+            public const float maxWidth = 16;
+            public const float maxHeight = 32;
+            // graceLength is how far (in pixels) you can extend past max width/height on all sides
+            static bool SizeAllowed(Vec3F32 boxCorner, float graceLength) {
+                //convert to block-unit to match boxCorner
+                const float maxWidthB = maxWidth / 16f;
+                const float maxHeightB = maxHeight / 16f;
+                float graceLengthB = graceLength / 16f;
+                if (
+                    boxCorner.Y < -graceLengthB ||
+                    boxCorner.Y > maxHeightB + graceLengthB ||
+
+                    boxCorner.X < -((maxWidthB / 2) + graceLengthB) ||
+                    boxCorner.X > (maxWidthB / 2) + graceLengthB ||
+                    boxCorner.Z < -((maxWidthB / 2) + graceLengthB) ||
+                    boxCorner.Z > (maxWidthB / 2) + graceLengthB
+                ) {
+                    return false;
+                }
+                return true;
+            }
+
+
             public class JsonRoot {
                 public Meta meta;
                 public string name;
@@ -1460,8 +1457,103 @@ namespace MCGalaxy {
                 public UuidOrGroup[] outliner;
                 public Resolution resolution;
 
-                public string ToJson() {
-                    return JsonConvert.SerializeObject(this);
+                public bool IsValid(Player p) {
+                    // warn player if unsupported features were used
+                    bool warnings = false;
+
+                    // check if not free model
+                    if (this.meta.model_format != "free") {
+                        p.Message(
+                            "%WModel uses format %b{0} %W(should be using %b\"Free Model\"%W)!",
+                            this.meta.model_format
+                        );
+                        warnings = true;
+                    }
+
+                    UInt16? lastTexture = null;
+                    Func<JsonRoot.Face, string> bad = (face) => {
+                        // check for uv rotation
+                        if (face.rotation != 0) {
+                            return "uses UV rotation";
+                        }
+
+                        // check for no assigned texture
+                        if (!face.texture.HasValue) {
+                            return "doesn't have a texture";
+                        } else {
+                            // check if using more than 1 texture
+                            if (lastTexture.HasValue) {
+                                if (lastTexture.Value != face.texture.Value) {
+                                    return "uses a different texture";
+                                }
+                            } else {
+                                lastTexture = face.texture.Value;
+                            }
+                        }
+
+                        return null;
+                    };
+                    for (int i = 0; i < this.elements.Length; i++) {
+                        var e = this.elements[i];
+                        string reason = null;
+
+                        Action<string> warn = (faceName) => {
+                            p.Message(
+                                "%WThe %b{0} %Wface on the %b{1} %Wcube {2}!",
+                                faceName,
+                                e.name,
+                                reason
+                            );
+                            warnings = true;
+                        };
+
+                        reason = bad(e.faces.up);
+                        if (reason != null) { warn("up"); }
+                        reason = bad(e.faces.down);
+                        if (reason != null) { warn("down"); }
+                        reason = bad(e.faces.north);
+                        if (reason != null) { warn("north"); }
+                        reason = bad(e.faces.south);
+                        if (reason != null) { warn("south"); }
+                        reason = bad(e.faces.east);
+                        if (reason != null) { warn("east"); }
+                        reason = bad(e.faces.west);
+                        if (reason != null) { warn("west"); }
+                    }
+
+
+                    Action<UuidOrGroup> test = null;
+                    test = (uuidOrGroup) => {
+                        if (uuidOrGroup.group != null) {
+                            var g = uuidOrGroup.group;
+                            // if pivot point exists, and rotation isn't 0
+                            if (
+                                g.rotation[0] != 0 ||
+                                g.rotation[1] != 0 ||
+                                g.rotation[2] != 0
+                            ) {
+                                p.Message(
+                                    "%WThe %b{0} %Wgroup uses rotation!",
+                                    g.name
+                                );
+                                warnings = true;
+                            }
+
+                            foreach (var innerGroup in uuidOrGroup.group.children) {
+                                test(innerGroup);
+                            }
+                        }
+                    };
+                    foreach (var uuidOrGroup in this.outliner) {
+                        test(uuidOrGroup);
+                    }
+
+                    if (warnings) {
+                        p.Message("%WThese BlockBench features aren't supported in ClassiCube.");
+                    }
+
+
+                    return true;
                 }
 
                 public Part[] ToParts() {
@@ -1470,7 +1562,6 @@ namespace MCGalaxy {
                     var elementByUuid = new Dictionary<string, Element>();
                     foreach (Element e in this.elements) {
                         elementByUuid.Add(e.uuid, e);
-
                     }
 
                     foreach (var uuidOrGroup in this.outliner) {
@@ -1496,7 +1587,8 @@ namespace MCGalaxy {
                     bool visibility
                 ) {
                     if (uuidOrGroup.group == null) {
-                        // Logger.Log(LogType.Warning, "uuid " + uuidOrGroup.uuid);
+                        // a uuid
+
                         var e = elementByUuid[uuidOrGroup.uuid];
                         e.rotation[0] += rotation[0];
                         e.rotation[1] += rotation[1];
@@ -1507,16 +1599,13 @@ namespace MCGalaxy {
                         if (!visibility) {
                             e.visibility = visibility;
                         }
-                        // if (e.name.StartsWith("tail")) {
-                        //     Logger.Log(LogType.Warning, "rotation " + e.rotation[0] + " " + e.rotation[1] + " " + e.rotation[2]);
-                        //     Logger.Log(LogType.Warning, "origin " + e.origin[0] + " " + e.origin[1] + " " + e.origin[2]);
-                        // }
                         var part = ToPart(e);
                         if (part != null) {
                             parts.Add(part);
                         }
                     } else {
-                        // Logger.Log(LogType.Warning, "group " + uuidOrGroup.group.uuid);
+                        // a group
+
                         var innerRotation = new[] {
                             uuidOrGroup.group.rotation[0],
                             uuidOrGroup.group.rotation[1],
@@ -1670,7 +1759,7 @@ namespace MCGalaxy {
                     public UInt16 height;
                 }
                 public class Meta {
-                    public bool box_uv;
+                    public string model_format;
                 }
                 public class Element {
                     public Element() {
@@ -1723,8 +1812,8 @@ namespace MCGalaxy {
 
                     // 4 numbers
                     public UInt16[] uv;
-                    public UInt16? texture;
-                    public UInt16 rotation;
+                    public UInt16? texture = null;
+                    public UInt16 rotation = 0;
                 }
                 public class UuidOrGroup {
                     public string uuid;
@@ -1914,6 +2003,26 @@ namespace MCGalaxy {
                     }
                 }
             }
+        }
+
+        static string ListicleNumber(int n) {
+            if (n > 3 && n < 21) { return n + "th"; }
+            string suffix;
+            switch (n % 10) {
+                case 1:
+                    suffix = "st";
+                    break;
+                case 2:
+                    suffix = "nd";
+                    break;
+                case 3:
+                    suffix = "rd";
+                    break;
+                default:
+                    suffix = "th";
+                    break;
+            }
+            return n + suffix;
         }
 
         private static bool debug = false;
