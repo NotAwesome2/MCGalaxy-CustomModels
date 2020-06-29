@@ -572,9 +572,9 @@ namespace MCGalaxy {
             OnPlayerDisconnectEvent.Register(OnPlayerDisconnect, Priority.Low);
             OnJoiningLevelEvent.Register(OnJoiningLevel, Priority.Low);
             OnJoinedLevelEvent.Register(OnJoinedLevel, Priority.Low);
-            OnChangeModelPacketEvent.Register(OnBeforeChangeModel, Priority.Low);
+            OnSendingModelEvent.Register(OnSendingModel, Priority.Low);
             OnPlayerCommandEvent.Register(OnPlayerCommand, Priority.Low);
-            OnEntityChangeModelEvent.Register(OnEntityChangeModel, Priority.Low);
+            // OnEntityChangeModelEvent.Register(OnEntityChangeModel, Priority.Low);
 
             Directory.CreateDirectory(PublicModelsDirectory);
             Directory.CreateDirectory(PersonalModelsDirectory);
@@ -603,9 +603,9 @@ namespace MCGalaxy {
             OnPlayerDisconnectEvent.Unregister(OnPlayerDisconnect);
             OnJoiningLevelEvent.Unregister(OnJoiningLevel);
             OnJoinedLevelEvent.Unregister(OnJoinedLevel);
-            OnChangeModelPacketEvent.Unregister(OnBeforeChangeModel);
+            OnSendingModelEvent.Unregister(OnSendingModel);
             OnPlayerCommandEvent.Unregister(OnPlayerCommand);
-            OnEntityChangeModelEvent.Unregister(OnEntityChangeModel);
+            // OnEntityChangeModelEvent.Unregister(OnEntityChangeModel);
 
             if (command != null) {
                 Command.Unregister(command);
@@ -656,6 +656,14 @@ namespace MCGalaxy {
                 visibleModels.Add(ModelInfo.GetRawModel(e.Model));
             }
 
+            // send first so that the new model exists before removing the old one.
+            // removing first will cause a couple ms of humanoid to be shown before the new model arrives
+            //
+            // send new models not yet in player's list
+            foreach (var modelName in visibleModels) {
+                CheckSendModel(p, modelName);
+            }
+
             var sentModels = SentCustomModels[p.name];
             // clone so we can modify while we iterate
             foreach (var modelName in sentModels.ToArray()) {
@@ -663,11 +671,6 @@ namespace MCGalaxy {
                 if (!visibleModels.Contains(modelName)) {
                     CheckRemoveModel(p, modelName);
                 }
-            }
-
-            // send new models not yet in player's list
-            foreach (var modelName in visibleModels) {
-                CheckSendModel(p, modelName);
             }
         }
 
@@ -689,7 +692,7 @@ namespace MCGalaxy {
             var loadedLevels = new Dictionary<string, Level>(StringComparer.OrdinalIgnoreCase);
             foreach (Player p in PlayerInfo.Online.Items) {
                 if (ModelInfo.GetRawModel(p.Model).CaselessEq(modelName)) {
-                    Entities.UpdateModel(p, p.Model);
+                    p.UpdateModel(p.Model);
                 }
 
                 if (!loadedLevels.ContainsKey(p.level.name)) {
@@ -700,7 +703,7 @@ namespace MCGalaxy {
                 var level = entry.Value;
                 foreach (PlayerBot e in level.Bots.Items) {
                     if (ModelInfo.GetRawModel(e.Model).CaselessEq(modelName)) {
-                        Entities.UpdateModel(e, e.Model);
+                        e.UpdateModel(e.Model);
                     }
                 }
             }
@@ -744,7 +747,8 @@ namespace MCGalaxy {
             }
         }
 
-        static void OnBeforeChangeModel(Player p, byte entityID, ref string modelName) {
+        static void OnSendingModel(Entity e, ref string model, Player dst) {
+            // Logger.Log(LogType.SystemActivity, "CustomModels OnSendingModel {0} {1}", model, dst.name);
             // UpdateSkinType(p);
 
             // TODO if someone does layers(c,b,a) it will DefineModel layers(a,b,c)
@@ -752,15 +756,15 @@ namespace MCGalaxy {
             try {
                 // use CheckAddRemove because we also want to remove the previous model,
                 // if no one else is using it
-                CheckAddRemove(p, p.level);
-            } catch (Exception e) {
+                CheckAddRemove(dst, dst.level);
+            } catch (Exception exception) {
                 Logger.Log(
                     LogType.Error,
-                    "CustomModels OnBeforeChangeModel {0} {1}: {2}\n{3}",
-                    p.name,
-                    modelName,
-                    e.Message,
-                    e.StackTrace
+                    "CustomModels OnSendingModel {0} {1}: {2}\n{3}",
+                    dst.name,
+                    model,
+                    exception.Message,
+                    exception.StackTrace
                 );
             }
         }
@@ -806,7 +810,7 @@ namespace MCGalaxy {
                 // p.HandleCommand("Model", args, data);
                 // p.cancelcommand = true;
             } else if (cmd.CaselessEq("skin")) {
-                // TODO use first arg as target, and do Entities.UpdateModel
+                // TODO use first arg as target, and do p.UpdateModel
                 // p.SkinName
                 // Logger.Log(LogType.Warning, "skin {0}", p.name);
             }
