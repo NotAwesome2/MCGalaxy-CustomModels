@@ -838,6 +838,10 @@ namespace MCGalaxy {
 
         // Called when model is being sent to a player.
         static void OnSendingModel(Entity e, ref string modelName, Player dst) {
+            if (modelName != e.Model) {
+                // e.Model can be $model while modelName will be player+
+                return;
+            }
             Debug("CustomModels OnSendingModel {0}: {1}", dst.name, modelName);
 
             var storedModel = new StoredCustomModel(modelName);
