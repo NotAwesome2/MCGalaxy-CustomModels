@@ -322,86 +322,94 @@ namespace MCGalaxy {
                     }
 
 
-                    // TODO only do this if humanleftarm is found!
 
-                    // our entity is using a steve skin, convert from SteveLayers to Steve
-                    if (this.modifiers.Contains("steve")) {
-                        // remove layer parts
-                        parts = parts.Where(part => !part.layer).ToList();
+                    if (
+                        parts.Find(part =>
+                            part.skinLeftArm ||
+                            part.skinRightArm ||
+                            part.skinLeftLeg ||
+                            part.skinRightLeg
+                        ) != null
+                    ) {
+                        if (this.modifiers.Contains("alex")) {
+                            // our entity is using an alex skin, convert model from SteveLayers to Alex
+                            foreach (var part in parts) {
+                                if (part.skinLeftArm || part.skinRightArm) {
+                                    // top
+                                    part.u1[0] -= 1;
 
-                        // halve all uv "y coord"/v
-                        foreach (var part in parts) {
-                            part.v1[0] *= 2;
-                            part.v1[1] *= 2;
-                            part.v1[2] *= 2;
-                            part.v1[3] *= 2;
-                            part.v1[4] *= 2;
-                            part.v1[5] *= 2;
+                                    // down
+                                    part.u1[1] -= 1;
+                                    part.u2[1] -= 2;
 
-                            part.v2[0] *= 2;
-                            part.v2[1] *= 2;
-                            part.v2[2] *= 2;
-                            part.v2[3] *= 2;
-                            part.v2[4] *= 2;
-                            part.v2[5] *= 2;
-                        }
+                                    // north
+                                    part.u1[2] -= 1;
 
-                        Action<Part, Part> f = (left, right) => {
-                            // there's only 1 leg/arm in the steve model
-                            left.u1 = (ushort[])right.u1.Clone();
-                            left.u2 = (ushort[])right.u2.Clone();
-                            left.v1 = (ushort[])right.v1.Clone();
-                            left.v2 = (ushort[])right.v2.Clone();
+                                    // south
+                                    part.u1[3] -= 2;
+                                    part.u2[3] -= 1;
 
-                            // swap u's
-                            Swap(ref left.u1, ref left.u2);
-
-                            /* uv coords in order: top, bottom, front, back, left, right */
-                            // swap west and east
-                            Swap(ref left.u1[4], ref left.u1[5]);
-                            Swap(ref left.u2[4], ref left.u2[5]);
-                            Swap(ref left.v1[4], ref left.v1[5]);
-                            Swap(ref left.v2[4], ref left.v2[5]);
-                        };
-
-                        Part leftArm = parts.Find(part => part.skinLeftArm);
-                        Part rightArm = parts.Find(part => part.skinRightArm);
-                        if (leftArm != null && rightArm != null) {
-                            f(leftArm, rightArm);
-                        }
-
-                        Part leftLeg = parts.Find(part => part.skinLeftLeg);
-                        Part rightLeg = parts.Find(part => part.skinRightLeg);
-                        if (leftLeg != null && rightLeg != null) {
-                            f(leftLeg, rightLeg);
-                        }
-                    }
-
-                    if (this.modifiers.Contains("alex")) {
-                        foreach (var part in parts) {
-                            if (part.skinLeftArm || part.skinRightArm) {
-                                // top
-                                part.u1[0] -= 1;
-
-                                // down
-                                part.u1[1] -= 1;
-                                part.u2[1] -= 2;
-
-                                // north
-                                part.u1[2] -= 1;
-
-                                // south
-                                part.u1[3] -= 2;
-                                part.u2[3] -= 1;
-
-                                // east
-                                part.u1[5] -= 1;
-                                part.u2[5] -= 1;
+                                    // east
+                                    part.u1[5] -= 1;
+                                    part.u2[5] -= 1;
+                                }
+                                if (part.skinLeftArm) {
+                                    part.min.X += 1.0f / 16.0f;
+                                } else if (part.skinRightArm) {
+                                    part.max.X -= 1.0f / 16.0f;
+                                }
                             }
-                            if (part.skinLeftArm) {
-                                part.min.X += 1.0f / 16.0f;
-                            } else if (part.skinRightArm) {
-                                part.max.X -= 1.0f / 16.0f;
+                        } else if (this.modifiers.Contains("steve")) {
+                            // our entity is using a steve skin, convert from SteveLayers to Steve
+
+                            // remove layer parts
+                            parts = parts.Where(part => !part.layer).ToList();
+
+                            // halve all uv "y coord"/v
+                            foreach (var part in parts) {
+                                part.v1[0] *= 2;
+                                part.v1[1] *= 2;
+                                part.v1[2] *= 2;
+                                part.v1[3] *= 2;
+                                part.v1[4] *= 2;
+                                part.v1[5] *= 2;
+
+                                part.v2[0] *= 2;
+                                part.v2[1] *= 2;
+                                part.v2[2] *= 2;
+                                part.v2[3] *= 2;
+                                part.v2[4] *= 2;
+                                part.v2[5] *= 2;
+                            }
+
+                            Action<Part, Part> f = (left, right) => {
+                                // there's only 1 leg/arm in the steve model
+                                left.u1 = (ushort[])right.u1.Clone();
+                                left.u2 = (ushort[])right.u2.Clone();
+                                left.v1 = (ushort[])right.v1.Clone();
+                                left.v2 = (ushort[])right.v2.Clone();
+
+                                // swap u's
+                                Swap(ref left.u1, ref left.u2);
+
+                                /* uv coords in order: top, bottom, front, back, left, right */
+                                // swap west and east
+                                Swap(ref left.u1[4], ref left.u1[5]);
+                                Swap(ref left.u2[4], ref left.u2[5]);
+                                Swap(ref left.v1[4], ref left.v1[5]);
+                                Swap(ref left.v2[4], ref left.v2[5]);
+                            };
+
+                            Part leftArm = parts.Find(part => part.skinLeftArm);
+                            Part rightArm = parts.Find(part => part.skinRightArm);
+                            if (leftArm != null && rightArm != null) {
+                                f(leftArm, rightArm);
+                            }
+
+                            Part leftLeg = parts.Find(part => part.skinLeftLeg);
+                            Part rightLeg = parts.Find(part => part.skinRightLeg);
+                            if (leftLeg != null && rightLeg != null) {
+                                f(leftLeg, rightLeg);
                             }
                         }
                     }
