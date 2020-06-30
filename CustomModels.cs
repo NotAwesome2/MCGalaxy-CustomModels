@@ -321,7 +321,10 @@ namespace MCGalaxy {
                         }
                     }
 
-                    // our entity is using a steve model, convert from SteveLayers to Steve
+
+                    // TODO only do this if humanleftarm is found!
+
+                    // our entity is using a steve skin, convert from SteveLayers to Steve
                     if (this.modifiers.Contains("steve")) {
                         // remove layer parts
                         parts = parts.Where(part => !part.layer).ToList();
@@ -818,7 +821,8 @@ namespace MCGalaxy {
                             Debug("weird!");
                         }
 
-                        GetSkinTypeTasks.TryRemove(e, out _);
+                        TaskAndToken ignored;
+                        GetSkinTypeTasks.TryRemove(e, out ignored);
                         Debug("removed {0}; {1} more tasks", skinName, GetSkinTypeTasks.Count);
                     }
                 },
@@ -2019,7 +2023,8 @@ namespace MCGalaxy {
 
                             Debug("Memoizer1 Removing {0}", key);
                             lock (GetCacheLock(key)) {
-                                cache.TryRemove(key, out _);
+                                CacheEntry ignored;
+                                cache.TryRemove(key, out ignored);
                             }
                         };
                         timer.Start();
