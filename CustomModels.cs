@@ -12,6 +12,8 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
 using MCGalaxy.Commands;
 using MCGalaxy.Events.EntityEvents;
 using MCGalaxy.Events.PlayerEvents;
@@ -768,6 +770,68 @@ namespace MCGalaxy {
                     return SkinType.SteveLayers;
                 });
 
+
+        struct TaskAndToken {
+            public Task task;
+            public CancellationTokenSource cancelSource;
+        }
+        static ConcurrentDictionary<Entity, TaskAndToken> GetSkinTypeTasks =
+            new ConcurrentDictionary<Entity, TaskAndToken>();
+
+        static void UpdateModelForSkinType(Entity e, SkinType skinType) {
+            var storedModel = new StoredCustomModel(e.Model);
+            var oldModelName = storedModel.GetFullNameWithScale();
+            storedModel.ApplySkinType(skinType);
+
+            var newModelName = storedModel.GetFullNameWithScale();
+            if (!oldModelName.CaselessEq(newModelName)) {
+                Debug("UPDATE MODEL {0} -> {1}", oldModelName, newModelName);
+                e.UpdateModel(newModelName);
+            } else {
+                Debug("already {0}", newModelName);
+            }
+        }
+
+        static TaskAndToken SpawnGetSkinType(Entity e) {
+            Debug("SpawnGetSkinType {0}", e.SkinName);
+            var modelName = e.Model;
+            var skinName = e.SkinName;
+
+            var cancelSource = new CancellationTokenSource();
+            var cancelToken = cancelSource.Token;
+            Task task = new Task(
+                () => {
+                    cancelToken.ThrowIfCancellationRequested();
+
+                    // check if we need to apply skin type transforms
+                    var skinType = MemoizedGetSkinType.Get(skinName);
+                    cancelToken.ThrowIfCancellationRequested();
+
+                    lock (GetSkinTypeTasks) {
+                        if (
+                            e.Model == modelName &&
+                            e.SkinName == skinName
+                        ) {
+                            UpdateModelForSkinType(e, skinType);
+                        } else {
+                            // we were so slow the entity was modified
+                            Debug("weird!");
+                        }
+
+                        GetSkinTypeTasks.TryRemove(e, out _);
+                        Debug("removed {0}; {1} more tasks", skinName, GetSkinTypeTasks.Count);
+                    }
+                },
+                cancelToken
+            );
+            task.Start();
+
+            return new TaskAndToken {
+                task = task,
+                cancelSource = cancelSource,
+            };
+        }
+
         // Called when model is being sent to a player.
         static void OnSendingModel(Entity e, ref string modelName, Player dst) {
             Debug("CustomModels OnSendingModel {0}: {1}", dst.name, modelName);
@@ -776,19 +840,36 @@ namespace MCGalaxy {
             if (storedModel.Exists()) {
                 // if this is a custom model
 
-                // check if we need to apply skin type transforms
-                var skinType = MemoizedGetSkinType.Get(e.SkinName);
-                storedModel.ApplySkinType(skinType);
+                var skinName = e.SkinName;
 
-                var newModelName = storedModel.GetFullNameWithScale();
-                if (!modelName.CaselessEq(newModelName)) {
-                    Debug("OVERRIDE MODEL {0} -> {1}", modelName, newModelName);
-                    // override what model was set!
-                    modelName = newModelName;
-                    // also SetModel so our CheckAddRemove can see e.Model
-                    e.SetModel(modelName);
+                SkinType skinType;
+                if (MemoizedGetSkinType.GetCached(skinName, out skinType)) {
+                    var oldModelName = storedModel.GetFullNameWithScale();
+                    storedModel.ApplySkinType(skinType);
+
+                    var newModelName = storedModel.GetFullNameWithScale();
+                    if (!oldModelName.CaselessEq(newModelName)) {
+                        Debug("OVERRIDE MODEL {0} -> {1}", oldModelName, newModelName);
+                        modelName = newModelName;
+                        e.SetModel(newModelName);
+                    } else {
+                        Debug("already {0}", newModelName);
+                    }
                 } else {
-                    Debug("already {0}", newModelName);
+                    // spawn long task
+                    lock (GetSkinTypeTasks) {
+                        GetSkinTypeTasks.AddOrUpdate(
+                            e,
+                            (e2) => {
+                                return SpawnGetSkinType(e2);
+                            },
+                            (e2, oldValue) => {
+                                Debug("cancelling {0}", e2.SkinName);
+                                oldValue.cancelSource.Cancel();
+                                return SpawnGetSkinType(e2);
+                            }
+                        );
+                    }
                 }
 
 
@@ -1093,7 +1174,8 @@ namespace MCGalaxy {
                 }
             }
 
-            static Dictionary<string, ModelField> ModifiableFields = new Dictionary<string, ModelField>(StringComparer.OrdinalIgnoreCase) {
+            static Dictionary<string, ModelField> ModifiableFields =
+                new Dictionary<string, ModelField>(StringComparer.OrdinalIgnoreCase) {
                 {
                     "nameY",
                     new ModelField(
@@ -1949,20 +2031,15 @@ namespace MCGalaxy {
                 }
             }
 
-            // this will still block from our lock!
-            // maybe a flag saying whether or not we're currently fetching
-            // public bool GetCached(TKey key, out TValue value) {
-            //     lock (GetCacheLock(key)) {
-            //         CacheEntry entry;
-            //         if (cache.TryGetValue(key, out entry)) {
-            //             Debug("Memoizer1 Hit {0}", key);
-            //             value = entry.value;
-            //             return true;
-            //         }
-            //         value = default(TValue);
-            //         return false;
-            //     }
-            // }
+            public bool GetCached(TKey key, out TValue value) {
+                CacheEntry entry;
+                if (cache.TryGetValue(key, out entry)) {
+                    value = entry.value;
+                    return true;
+                }
+                value = default(TValue);
+                return false;
+            }
 
             public TValue Fetch(TKey key) {
                 TValue ret;
