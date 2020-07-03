@@ -777,6 +777,7 @@ namespace MCGalaxy {
                 // cache for 1 hour
                 new TimeSpan(1, 0, 0),
                 (ex) => {
+                    // Debug("" + ex.Message);
                     // default to SteveLayers if failed to GetSkinType
                     return SkinType.SteveLayers;
                 });
@@ -846,8 +847,8 @@ namespace MCGalaxy {
 
         // Called when model is being sent to a player.
         static void OnSendingModel(Entity e, ref string modelName, Player dst) {
-            if (modelName != e.Model) {
-                // e.Model can be $model while modelName will be player+
+            if (modelName.StartsWith("$")) {
+                // don't run if $model
                 return;
             }
             Debug("CustomModels OnSendingModel {0}: {1}", dst.name, modelName);
@@ -1009,7 +1010,7 @@ namespace MCGalaxy {
                     var args = new List<string>(message.SplitSpaces());
                     if (args.Count >= 1) {
                         string subCommand = args.PopFront();
-                        if (subCommand.CaselessEq("config")) {
+                        if (subCommand.CaselessEq("config") || subCommand.CaselessEq("edit")) {
                             if (args.Count >= 1) {
                                 string subSubCommand = args.PopFront();
                                 if (subSubCommand.CaselessEq("fields")) {
@@ -1066,7 +1067,7 @@ namespace MCGalaxy {
                             // /CustomModel list [name]
                             List(p, StoredCustomModel.GetPlayerName(modelName));
                             return;
-                        } else if (subCommand.CaselessEq("config")) {
+                        } else if (subCommand.CaselessEq("config") || subCommand.CaselessEq("edit")) {
                             // /CustomModel config [name] [field] [values...]
                             Config(p, data, modelName, args);
                             return;
