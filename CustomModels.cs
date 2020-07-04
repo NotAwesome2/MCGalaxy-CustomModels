@@ -847,7 +847,7 @@ namespace MCGalaxy {
 
         // Called when model is being sent to a player.
         static void OnSendingModel(Entity e, ref string modelName, Player dst) {
-            if (modelName.StartsWith("$")) {
+            if (e.Model.StartsWith("$")) {
                 // don't run if $model
                 return;
             }
