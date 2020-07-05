@@ -288,16 +288,18 @@ namespace MCGalaxy {
                     if (this.modifiers.Contains("sit")) {
                         Part leg = null;
                         foreach (var part in parts) {
-                            if (
-                                part.anim == CustomModelAnim.LeftLeg ||
-                                part.anim == CustomModelAnim.RightLeg
-                            ) {
-                                // rotate legs to point forward, pointed a little outwards
-                                leg = part;
-                                part.rotation.X = 90.0f;
-                                part.rotation.Y = part.anim == CustomModelAnim.LeftLeg ? 5.0f : -5.0f;
-                                part.rotation.Z = 0;
-                                part.anim = CustomModelAnim.None;
+                            foreach (var anim in part.anims) {
+                                if (
+                                    anim.type == CustomModelAnimType.LeftLeg ||
+                                    anim.type == CustomModelAnimType.RightLeg
+                                ) {
+                                    // rotate legs to point forward, pointed a little outwards
+                                    leg = part;
+                                    part.rotation.X = 90.0f;
+                                    part.rotation.Y = anim.type == CustomModelAnimType.LeftLeg ? 5.0f : -5.0f;
+                                    part.rotation.Z = 0;
+                                    anim.type = CustomModelAnimType.None;
+                                }
                             }
                         }
 
@@ -415,7 +417,7 @@ namespace MCGalaxy {
                     }
                 }
 
-                DefineModel(p, model, parts.ToArray());
+                DefineModel(p, model, parts.Select(part => part.ToCustomModelPart()).ToArray());
             }
         }
 
@@ -425,8 +427,19 @@ namespace MCGalaxy {
             public bool skinRightArm = false;
             public bool skinLeftLeg = false;
             public bool skinRightLeg = false;
-        }
 
+            public CustomModelPart ToCustomModelPart() {
+                var fixedAnims = this.anims.Take(Packet.MaxCustomModelAnims).ToList();
+                for (int i = fixedAnims.Count; i < Packet.MaxCustomModelAnims; i++) {
+                    fixedAnims.Add(new CustomModelAnim {
+                        type = CustomModelAnimType.None
+                    });
+                }
+                this.anims = fixedAnims.ToArray();
+
+                return this;
+            }
+        }
 
         // returns how many models
         static int CreateMissingCCModels(bool isPersonal) {
@@ -551,29 +564,38 @@ namespace MCGalaxy {
         }
 
         static void DefineModel(Player p, CustomModel model, CustomModelPart[] parts) {
-            Debug("DefineModel {0} {1}", p.name, model.name);
-            if (!p.Supports(CpeExt.CustomModels)) return;
+            bool hasV1 = p.Supports(CpeExt.CustomModels, 1);
+            bool hasV2 = p.Supports(CpeExt.CustomModels, 2);
+            if (hasV1 || hasV2) {
+                Debug("DefineModel {0} {1}", p.name, model.name);
 
-            var modelId = GetModelId(p, model.name, true).Value;
-            model.partCount = (byte)parts.Length;
-            byte[] modelPacket = Packet.DefineModel(modelId, model);
-            p.Send(modelPacket);
+                var modelId = GetModelId(p, model.name, true).Value;
+                model.partCount = (byte)parts.Length;
+                byte[] modelPacket = Packet.DefineModel(modelId, model);
+                p.Send(modelPacket);
 
-            foreach (var part in parts) {
-                byte[] partPacket = Packet.DefineModelPart(modelId, part);
-                p.Send(partPacket);
+                foreach (var part in parts) {
+                    if (hasV2) {
+                        p.Send(Packet.DefineModelPartV2(modelId, part));
+                    } else if (hasV1) {
+                        p.Send(Packet.DefineModelPart(modelId, part));
+                    }
+                }
             }
         }
 
         static void UndefineModel(Player p, string name) {
-            Debug("UndefineModel {0} {1}", p.name, name);
-            if (!p.Supports(CpeExt.CustomModels)) return;
+            bool hasV1 = p.Supports(CpeExt.CustomModels, 1);
+            bool hasV2 = p.Supports(CpeExt.CustomModels, 2);
+            if (hasV1 || hasV2) {
+                Debug("UndefineModel {0} {1}", p.name, name);
 
-            byte[] modelPacket = Packet.UndefineModel(GetModelId(p, name).Value);
-            p.Send(modelPacket);
+                byte[] modelPacket = Packet.UndefineModel(GetModelId(p, name).Value);
+                p.Send(modelPacket);
 
-            var modelNameToId = ModelNameToIdForPlayer[p.name];
-            modelNameToId.Remove(name);
+                var modelNameToId = ModelNameToIdForPlayer[p.name];
+                modelNameToId.Remove(name);
+            }
         }
 
         //------------------------------------------------------------------ plugin interface
@@ -1060,14 +1082,21 @@ namespace MCGalaxy {
                             return;
                         }
                     } else if (args.Count >= 1) {
-                        var modelName = TargetModelName(p, data, args.PopFront());
-                        if (modelName == null) return;
+                        var arg = args.PopFront();
 
                         if (subCommand.CaselessEq("list") && args.Count == 0) {
                             // /CustomModel list [name]
-                            List(p, StoredCustomModel.GetPlayerName(modelName));
+                            var ag = TargetModelName(p, data, arg, false);
+                            if (ag == null) return;
+
+                            List(p, StoredCustomModel.GetPlayerName(ag));
                             return;
-                        } else if (subCommand.CaselessEq("config") || subCommand.CaselessEq("edit")) {
+                        }
+
+                        var modelName = TargetModelName(p, data, arg);
+                        if (modelName == null) return;
+
+                        if (subCommand.CaselessEq("config") || subCommand.CaselessEq("edit")) {
                             // /CustomModel config [name] [field] [values...]
                             Config(p, data, modelName, args);
                             return;
@@ -1087,19 +1116,21 @@ namespace MCGalaxy {
                 Help(p);
             }
 
-            private string TargetModelName(Player p, CommandData data, string arg) {
+            private string TargetModelName(Player p, CommandData data, string arg, bool checkPerms = true) {
                 if (arg.CaselessEq("-own")) {
                     arg = p.name;
                 }
 
                 if (!ValidModelName(p, arg)) return null;
 
-                string maybePlayerName = StoredCustomModel.GetPlayerName(arg);
-                bool targettingSelf = maybePlayerName != null && maybePlayerName.CaselessEq(p.name);
+                if (checkPerms) {
+                    string maybePlayerName = StoredCustomModel.GetPlayerName(arg);
+                    bool targettingSelf = maybePlayerName != null && maybePlayerName.CaselessEq(p.name);
 
-                // if you aren't targetting your own models,
-                // and you aren't admin, denied
-                if (!targettingSelf && !CheckExtraPerm(p, data, 1)) return null;
+                    // if you aren't targetting your own models,
+                    // and you aren't admin, denied
+                    if (!targettingSelf && !CheckExtraPerm(p, data, 1)) return null;
+                }
 
                 return Path.GetFileName(arg);
             }
@@ -1521,6 +1552,18 @@ namespace MCGalaxy {
                     }
                 }
 
+                for (int i = 0; i < parts.Length; i++) {
+                    var part = parts[i];
+                    if (part.anims.Length > Packet.MaxCustomModelAnims) {
+                        p.Message(
+                            "%WThe %b{0} cube in your list %Whas more than %b{1} %Wanimations.",
+                            ListicleNumber(i + 1),
+                            Packet.MaxCustomModelAnims
+                        );
+                        break;
+                    }
+                }
+
                 return true;
             }
 
@@ -1804,35 +1847,260 @@ namespace MCGalaxy {
                         rotation = rotation,
                     };
 
+                    var anims = new List<CustomModelAnim>();
                     var name = e.name.Replace(" ", "");
                     foreach (var attr in name.SplitComma()) {
+                        float a = 1;
+                        // bool hasA = false;
+                        float b = 1;
+                        bool hasB = false;
+                        float c = 1;
+                        bool hasC = false;
+                        float d = 1;
+                        bool hasD = false;
+
                         var colonSplit = attr.Split(':');
                         if (colonSplit.Length >= 2) {
-                            part.animModifier = float.Parse(colonSplit[1]);
+                            var modifiers = colonSplit[1].Replace(" ", "").Split('|');
+                            if (modifiers.Length > 0) {
+                                a = float.Parse(modifiers[0]);
+                                // hasA = true;
+                                if (modifiers.Length > 1) {
+                                    b = float.Parse(modifiers[1]);
+                                    hasB = true;
+                                    if (modifiers.Length > 2) {
+                                        c = float.Parse(modifiers[2]);
+                                        hasC = true;
+                                        if (modifiers.Length > 3) {
+                                            d = float.Parse(modifiers[3]);
+                                            hasD = true;
+                                        }
+                                    }
+                                }
+                            }
                         }
 
+                        var anim = new CustomModelAnim {
+                            type = CustomModelAnimType.None,
+                            a = a,
+                            b = b,
+                            c = c,
+                            d = d,
+                        };
+
                         if (attr.CaselessStarts("head")) {
-                            part.anim = CustomModelAnim.Head;
+                            anim.type = CustomModelAnimType.Head;
+                            anims.Add(anim);
+
                         } else if (attr.CaselessStarts("leftleg")) {
-                            part.anim = CustomModelAnim.LeftLeg;
+                            anim.type = CustomModelAnimType.LeftLeg;
+                            anims.Add(anim);
+
                         } else if (attr.CaselessStarts("rightleg")) {
-                            part.anim = CustomModelAnim.RightLeg;
+                            anim.type = CustomModelAnimType.RightLeg;
+                            anims.Add(anim);
+
                         } else if (attr.CaselessStarts("leftarm")) {
-                            part.anim = CustomModelAnim.LeftArm;
+                            anim.type = CustomModelAnimType.LeftArm;
+                            anims.Add(anim);
+
                         } else if (attr.CaselessStarts("rightarm")) {
-                            part.anim = CustomModelAnim.RightArm;
+                            anim.type = CustomModelAnimType.RightArm;
+                            anims.Add(anim);
+
                         } else if (attr.CaselessStarts("spinxvelocity")) {
-                            part.anim = CustomModelAnim.SpinXVelocity;
+                            anim.type = CustomModelAnimType.SpinXVelocity;
+                            if (!hasB) { anim.b = 0; }
+                            anims.Add(anim);
+
                         } else if (attr.CaselessStarts("spinyvelocity")) {
-                            part.anim = CustomModelAnim.SpinYVelocity;
+                            anim.type = CustomModelAnimType.SpinYVelocity;
+                            if (!hasB) { anim.b = 0; }
+                            anims.Add(anim);
+
                         } else if (attr.CaselessStarts("spinzvelocity")) {
-                            part.anim = CustomModelAnim.SpinZVelocity;
+                            anim.type = CustomModelAnimType.SpinZVelocity;
+                            if (!hasB) { anim.b = 0; }
+                            anims.Add(anim);
+
                         } else if (attr.CaselessStarts("spinx")) {
-                            part.anim = CustomModelAnim.SpinX;
+                            anim.type = CustomModelAnimType.SpinX;
+                            if (!hasB) { anim.b = 0; }
+                            anims.Add(anim);
+
                         } else if (attr.CaselessStarts("spiny")) {
-                            part.anim = CustomModelAnim.SpinY;
+                            anim.type = CustomModelAnimType.SpinY;
+                            if (!hasB) { anim.b = 0; }
+                            anims.Add(anim);
+
                         } else if (attr.CaselessStarts("spinz")) {
-                            part.anim = CustomModelAnim.SpinZ;
+                            anim.type = CustomModelAnimType.SpinZ;
+                            if (!hasB) { anim.b = 0; }
+                            anims.Add(anim);
+
+
+                        } else if (attr.CaselessStarts("pistonxvelocity")) {
+                            /*
+                                a: speed
+                                b: width
+                                c: shift cycle
+                                d: shift pos
+                            */
+                            anim.type = CustomModelAnimType.PistonXVelocity;
+                            if (!hasC) { anim.c = 0; }
+                            if (!hasD) { anim.d = 0; }
+                            anims.Add(anim);
+
+                        } else if (attr.CaselessStarts("pistonyvelocity")) {
+                            anim.type = CustomModelAnimType.PistonYVelocity;
+                            if (!hasC) { anim.c = 0; }
+                            if (!hasD) { anim.d = 0; }
+                            anims.Add(anim);
+
+                        } else if (attr.CaselessStarts("pistonzvelocity")) {
+                            anim.type = CustomModelAnimType.PistonZVelocity;
+                            if (!hasC) { anim.c = 0; }
+                            if (!hasD) { anim.d = 0; }
+                            anims.Add(anim);
+
+                        } else if (attr.CaselessStarts("pistonx")) {
+                            anim.type = CustomModelAnimType.PistonX;
+                            if (!hasC) { anim.c = 0; }
+                            if (!hasD) { anim.d = 0; }
+                            anims.Add(anim);
+
+                        } else if (attr.CaselessStarts("pistony")) {
+                            anim.type = CustomModelAnimType.PistonY;
+                            if (!hasC) { anim.c = 0; }
+                            if (!hasD) { anim.d = 0; }
+                            anims.Add(anim);
+
+                        } else if (attr.CaselessStarts("pistonz")) {
+                            anim.type = CustomModelAnimType.PistonZ;
+                            if (!hasC) { anim.c = 0; }
+                            if (!hasD) { anim.d = 0; }
+                            anims.Add(anim);
+
+
+
+                        } else if (attr.CaselessStarts("sinxvelocity")) {
+                            /*
+                                a: speed
+                                b: width
+                                c: shift cycle
+                                d: shift pos
+                            */
+                            anim.type = CustomModelAnimType.SinXVelocity;
+                            if (!hasC) { anim.c = 0; }
+                            if (!hasD) { anim.d = 0; }
+                            anims.Add(anim);
+
+                        } else if (attr.CaselessStarts("sinyvelocity")) {
+                            anim.type = CustomModelAnimType.SinYVelocity;
+                            if (!hasC) { anim.c = 0; }
+                            if (!hasD) { anim.d = 0; }
+                            anims.Add(anim);
+
+                        } else if (attr.CaselessStarts("sinzvelocity")) {
+                            anim.type = CustomModelAnimType.SinZVelocity;
+                            if (!hasC) { anim.c = 0; }
+                            if (!hasD) { anim.d = 0; }
+                            anims.Add(anim);
+
+                        } else if (attr.CaselessStarts("sinx")) {
+                            anim.type = CustomModelAnimType.SinX;
+                            if (!hasC) { anim.c = 0; }
+                            if (!hasD) { anim.d = 0; }
+                            anims.Add(anim);
+
+                        } else if (attr.CaselessStarts("siny")) {
+                            anim.type = CustomModelAnimType.SinY;
+                            if (!hasC) { anim.c = 0; }
+                            if (!hasD) { anim.d = 0; }
+                            anims.Add(anim);
+
+                        } else if (attr.CaselessStarts("sinz")) {
+                            anim.type = CustomModelAnimType.SinZ;
+                            if (!hasC) { anim.c = 0; }
+                            if (!hasD) { anim.d = 0; }
+                            anims.Add(anim);
+
+
+                        } else if (attr.CaselessStarts("cosxvelocity")) {
+                            /*
+                                a: speed
+                                b: width
+                                c: shift cycle
+                                d: shift pos
+                            */
+                            anim.type = CustomModelAnimType.CosXVelocity;
+                            if (!hasC) { anim.c = 0; }
+                            if (!hasD) { anim.d = 0; }
+                            anims.Add(anim);
+
+                        } else if (attr.CaselessStarts("cosyvelocity")) {
+                            anim.type = CustomModelAnimType.CosYVelocity;
+                            if (!hasC) { anim.c = 0; }
+                            if (!hasD) { anim.d = 0; }
+                            anims.Add(anim);
+
+                        } else if (attr.CaselessStarts("coszvelocity")) {
+                            anim.type = CustomModelAnimType.CosZVelocity;
+                            if (!hasC) { anim.c = 0; }
+                            if (!hasD) { anim.d = 0; }
+                            anims.Add(anim);
+
+                        } else if (attr.CaselessStarts("cosx")) {
+                            anim.type = CustomModelAnimType.CosX;
+                            if (!hasC) { anim.c = 0; }
+                            if (!hasD) { anim.d = 0; }
+                            anims.Add(anim);
+
+                        } else if (attr.CaselessStarts("cosy")) {
+                            anim.type = CustomModelAnimType.CosY;
+                            if (!hasC) { anim.c = 0; }
+                            if (!hasD) { anim.d = 0; }
+                            anims.Add(anim);
+
+                        } else if (attr.CaselessStarts("cosz")) {
+                            anim.type = CustomModelAnimType.CosZ;
+                            if (!hasC) { anim.c = 0; }
+                            if (!hasD) { anim.d = 0; }
+                            anims.Add(anim);
+
+
+                        } else if (attr.CaselessStarts("leftidle")) {
+                            anims.Add(new CustomModelAnim {
+                                type = CustomModelAnimType.SinX,
+                                a = ANIM_IDLE_XPERIOD,
+                                b = ANIM_IDLE_MAX,
+                                c = 0,
+                                d = 0,
+                            });
+                            anims.Add(new CustomModelAnim {
+                                type = CustomModelAnimType.CosZ,
+                                a = ANIM_IDLE_ZPERIOD,
+                                b = -ANIM_IDLE_MAX,
+                                c = 0,
+                                d = 1,
+                            });
+
+                        } else if (attr.CaselessStarts("rightidle")) {
+                            anims.Add(new CustomModelAnim {
+                                type = CustomModelAnimType.SinX,
+                                a = ANIM_IDLE_XPERIOD,
+                                b = -ANIM_IDLE_MAX,
+                                c = 0,
+                                d = 0,
+                            });
+                            anims.Add(new CustomModelAnim {
+                                type = CustomModelAnimType.CosZ,
+                                a = ANIM_IDLE_ZPERIOD,
+                                b = ANIM_IDLE_MAX,
+                                c = 0,
+                                d = 1,
+                            });
+
                         } else if (attr.CaselessStarts("fullbright")) {
                             part.fullbright = true;
                         } else if (attr.CaselessStarts("hand")) {
@@ -1849,9 +2117,19 @@ namespace MCGalaxy {
                             part.skinRightLeg = true;
                         }
                     }
+                    part.anims = anims.ToArray();
 
                     return part;
                 }
+                const float MATH_PI = 3.1415926535897931f;
+                const float MATH_DEG2RAD = (MATH_PI / 180.0f);
+                const float ANIM_MAX_ANGLE = (110 * MATH_DEG2RAD);
+                const float ANIM_ARM_MAX = (60.0f * MATH_DEG2RAD);
+                const float ANIM_LEG_MAX = (80.0f * MATH_DEG2RAD);
+                const float ANIM_IDLE_MAX = (3.0f * MATH_DEG2RAD);
+                const float ANIM_IDLE_XPERIOD = (2.0f * MATH_PI / 5.0f);
+                const float ANIM_IDLE_ZPERIOD = (2.0f * MATH_PI / 3.5f);
+
 
                 public class Resolution {
                     public UInt16 width;
