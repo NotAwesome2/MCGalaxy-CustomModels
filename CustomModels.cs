@@ -252,14 +252,18 @@ namespace MCGalaxy {
                 }
             }
 
+            public string GetModelFileName() {
+                return (this.fileName != null ? this.fileName : this.modelName).ToLower();
+            }
+
             public string GetCCPath() {
-                var modelName = this.fileName != null ? this.fileName : this.modelName;
-                return GetFolderPath(modelName) + Path.GetFileName(modelName.ToLower()) + CCModelExt;
+                var modelName = GetModelFileName();
+                return GetFolderPath(modelName) + Path.GetFileName(modelName) + CCModelExt;
             }
 
             public string GetBBPath() {
-                var modelName = this.fileName != null ? this.fileName : this.modelName;
-                return GetFolderPath(modelName) + Path.GetFileName(modelName.ToLower()) + BBModelExt;
+                var modelName = GetModelFileName();
+                return GetFolderPath(modelName) + Path.GetFileName(modelName) + BBModelExt;
             }
 
             public void WriteBBFile(string json) {
@@ -275,6 +279,20 @@ namespace MCGalaxy {
 
             public void Undefine(Player p) {
                 UndefineModel(p, GetFullName());
+            }
+
+            public bool UsesHumanParts(List<Part> parts = null) {
+                if (parts == null) {
+                    var blockBench = ParseBlockBench();
+                    parts = new List<Part>(blockBench.ToParts());
+                }
+
+                return parts.Find(part =>
+                    part.skinLeftArm ||
+                    part.skinRightArm ||
+                    part.skinLeftLeg ||
+                    part.skinRightLeg
+                ) != null;
             }
 
             public void Define(Player p) {
@@ -325,14 +343,7 @@ namespace MCGalaxy {
 
 
 
-                    if (
-                        parts.Find(part =>
-                            part.skinLeftArm ||
-                            part.skinRightArm ||
-                            part.skinLeftLeg ||
-                            part.skinRightLeg
-                        ) != null
-                    ) {
+                    if (UsesHumanParts(parts)) {
                         if (this.modifiers.Contains("alex")) {
                             // our entity is using an alex skin, convert model from SteveLayers to Alex
                             foreach (var part in parts) {
@@ -539,7 +550,8 @@ namespace MCGalaxy {
             return count;
         }
 
-        static Dictionary<string, Dictionary<string, byte>> ModelNameToIdForPlayer = new Dictionary<string, Dictionary<string, byte>>(StringComparer.OrdinalIgnoreCase);
+        static ConcurrentDictionary<string, ConcurrentDictionary<string, byte>> ModelNameToIdForPlayer =
+            new ConcurrentDictionary<string, ConcurrentDictionary<string, byte>>(StringComparer.OrdinalIgnoreCase);
 
         static byte? GetModelId(Player p, string name, bool addNew = false) {
             lock (ModelNameToIdForPlayer) {
@@ -550,9 +562,10 @@ namespace MCGalaxy {
                 } else {
                     if (addNew) {
                         for (int i = 0; i < Packet.MaxCustomModels; i++) {
-                            if (!modelNameToId.ContainsValue((byte)i)) {
-                                modelNameToId.Add(name, (byte)i);
-                                return (byte)i;
+                            byte id = (byte)i;
+                            if (!modelNameToId.Values.Contains(id)) {
+                                modelNameToId.TryAdd(name, id);
+                                return id;
                             }
                         }
                         throw new Exception("overflow MaxCustomModels");
@@ -567,9 +580,10 @@ namespace MCGalaxy {
             bool hasV1 = p.Supports(CpeExt.CustomModels, 1);
             bool hasV2 = p.Supports(CpeExt.CustomModels, 2);
             if (hasV1 || hasV2) {
-                Debug("DefineModel {0} {1}", p.name, model.name);
 
                 var modelId = GetModelId(p, model.name, true).Value;
+                Debug("DefineModel {0} {1} {2}", modelId, p.name, model.name);
+
                 model.partCount = (byte)parts.Length;
                 byte[] modelPacket = Packet.DefineModel(modelId, model);
                 p.Send(modelPacket);
@@ -585,16 +599,20 @@ namespace MCGalaxy {
         }
 
         static void UndefineModel(Player p, string name) {
-            bool hasV1 = p.Supports(CpeExt.CustomModels, 1);
-            bool hasV2 = p.Supports(CpeExt.CustomModels, 2);
-            if (hasV1 || hasV2) {
-                Debug("UndefineModel {0} {1}", p.name, name);
+            lock (ModelNameToIdForPlayer) {
+                bool hasV1 = p.Supports(CpeExt.CustomModels, 1);
+                bool hasV2 = p.Supports(CpeExt.CustomModels, 2);
+                if (hasV1 || hasV2) {
+                    var modelId = GetModelId(p, name).Value;
+                    Debug("UndefineModel {0} {1} {2}", modelId, p.name, name);
 
-                byte[] modelPacket = Packet.UndefineModel(GetModelId(p, name).Value);
-                p.Send(modelPacket);
+                    byte[] modelPacket = Packet.UndefineModel(modelId);
+                    p.Send(modelPacket);
 
-                var modelNameToId = ModelNameToIdForPlayer[p.name];
-                modelNameToId.Remove(name);
+                    var modelNameToId = ModelNameToIdForPlayer[p.name];
+                    byte ignored;
+                    modelNameToId.TryRemove(name, out ignored);
+                }
             }
         }
 
@@ -636,8 +654,8 @@ namespace MCGalaxy {
 
             // initialize because of a late plugin load
             foreach (Player p in PlayerInfo.Online.Items) {
-                SentCustomModels.Add(p.name, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
-                ModelNameToIdForPlayer.Add(p.name, new Dictionary<string, byte>(StringComparer.OrdinalIgnoreCase));
+                SentCustomModels.TryAdd(p.name, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+                ModelNameToIdForPlayer.TryAdd(p.name, new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase));
             }
         }
 
@@ -658,7 +676,8 @@ namespace MCGalaxy {
             }
         }
 
-        static Dictionary<string, HashSet<string>> SentCustomModels = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        static ConcurrentDictionary<string, HashSet<string>> SentCustomModels =
+            new ConcurrentDictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
 
         static void CheckSendModel(Player p, string modelName) {
             lock (SentCustomModels) {
@@ -691,6 +710,8 @@ namespace MCGalaxy {
         // sends all missing models in level to player,
         // and removes all unused models from player
         static void CheckAddRemove(Player p, Level level) {
+            Debug("CheckAddRemove {0}", p.name);
+
             var visibleModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             visibleModels.Add(ModelInfo.GetRawModel(p.Model));
 
@@ -709,22 +730,32 @@ namespace MCGalaxy {
                 CheckSendModel(p, modelName);
             }
 
-            var sentModels = SentCustomModels[p.name];
-            // clone so we can modify while we iterate
-            foreach (var modelName in sentModels.ToArray()) {
-                // remove models not found in this level
-                if (!visibleModels.Contains(modelName)) {
-                    CheckRemoveModel(p, modelName);
+            lock (SentCustomModels) {
+                var sentModels = SentCustomModels[p.name];
+                // clone so we can modify while we iterate
+                foreach (var modelName in sentModels.ToArray()) {
+                    // remove models not found in this level
+                    if (!visibleModels.Contains(modelName)) {
+                        CheckRemoveModel(p, modelName);
+                    }
                 }
             }
         }
 
-        static void CheckUpdateAll(string modelName) {
+        static void CheckUpdateAll(StoredCustomModel storedCustomModel) {
             // re-define the model and do ChangeModel for each entity currently using this model
 
             // remove this model from everyone's sent list
             foreach (Player p in PlayerInfo.Online.Items) {
-                CheckRemoveModel(p, modelName);
+                lock (SentCustomModels) {
+                    var sentModels = SentCustomModels[p.name];
+                    foreach (var modelName in sentModels.ToArray()) {
+                        if (storedCustomModel.GetModelFileName().CaselessEq(new StoredCustomModel(modelName).GetModelFileName())) {
+                            Debug("CheckUpdateAll remove {0} from {1}", modelName, p.name);
+                            CheckRemoveModel(p, modelName);
+                        }
+                    }
+                }
             }
 
             // add this model back to players who see entities using it
@@ -732,13 +763,17 @@ namespace MCGalaxy {
                 CheckAddRemove(p, p.level);
             }
 
+            Action<Entity> checkEntity = (e) => {
+                if (new StoredCustomModel(e.Model).Exists()) {
+                    e.UpdateModel(e.Model);
+                }
+            };
+
             // do ChangeModel on every entity with this model
             // so that we update the model on the client
             var loadedLevels = new Dictionary<string, Level>(StringComparer.OrdinalIgnoreCase);
             foreach (Player p in PlayerInfo.Online.Items) {
-                if (ModelInfo.GetRawModel(p.Model).CaselessEq(modelName)) {
-                    p.UpdateModel(p.Model);
-                }
+                checkEntity(p);
 
                 if (!loadedLevels.ContainsKey(p.level.name)) {
                     loadedLevels.Add(p.level.name, p.level);
@@ -747,21 +782,21 @@ namespace MCGalaxy {
             foreach (var entry in loadedLevels) {
                 var level = entry.Value;
                 foreach (PlayerBot e in level.Bots.Items) {
-                    if (ModelInfo.GetRawModel(e.Model).CaselessEq(modelName)) {
-                        e.UpdateModel(e.Model);
-                    }
+                    checkEntity(e);
                 }
             }
         }
 
         static void OnPlayerConnect(Player p) {
-            SentCustomModels.Add(p.name, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
-            ModelNameToIdForPlayer.Add(p.name, new Dictionary<string, byte>(StringComparer.OrdinalIgnoreCase));
+            SentCustomModels.TryAdd(p.name, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+            ModelNameToIdForPlayer.TryAdd(p.name, new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase));
         }
 
         static void OnPlayerDisconnect(Player p, string reason) {
-            SentCustomModels.Remove(p.name);
-            ModelNameToIdForPlayer.Remove(p.name);
+            HashSet<string> ignored;
+            SentCustomModels.TryRemove(p.name, out ignored);
+            ConcurrentDictionary<string, byte> ignored2;
+            ModelNameToIdForPlayer.TryRemove(p.name, out ignored2);
 
             Level prevLevel = p.level;
             if (prevLevel != null) {
@@ -873,11 +908,12 @@ namespace MCGalaxy {
                 // don't run if $model
                 return;
             }
-            Debug("CustomModels OnSendingModel {0}: {1}", dst.name, modelName);
+            Debug("OnSendingModel {0}: {1}", dst.name, modelName);
 
             var storedModel = new StoredCustomModel(modelName);
-            if (storedModel.Exists()) {
-                // if this is a custom model
+            if (storedModel.Exists() && storedModel.UsesHumanParts()) {
+                // if this is a custom model and it uses human parts,
+                // check if we need to skin transform
 
                 var skinName = e.SkinName;
 
@@ -910,12 +946,13 @@ namespace MCGalaxy {
                         );
                     }
                 }
-
-
-                // make sure the model is already defined for player
-                // before we send the ChangeModel packet
-                CheckAddRemove(dst, dst.level);
             }
+
+            // make sure the model is already defined for player
+            // before we send the ChangeModel packet
+            //
+            // also check if we should remove unused old model
+            CheckAddRemove(dst, dst.level);
         }
 
         static void OnPlayerCommand(Player p, string cmd, string args, CommandData data) {
@@ -1401,7 +1438,7 @@ namespace MCGalaxy {
                                 p.Message("%TField %S{0} %Tset!", fieldName);
 
                                 storedCustomModel.WriteToFile();
-                                CheckUpdateAll(modelName);
+                                CheckUpdateAll(storedCustomModel);
                             }
                         }
                     }
@@ -1428,7 +1465,7 @@ namespace MCGalaxy {
                         storedModel.WriteToFile();
                     }
 
-                    CheckUpdateAll(modelName);
+                    CheckUpdateAll(storedModel);
                     p.Message(
                         "%TCustom Model %S{0} %Tupdated!",
                         modelName
@@ -1946,37 +1983,37 @@ namespace MCGalaxy {
                                 c: shift cycle
                                 d: shift pos
                             */
-                            anim.type = CustomModelAnimType.PistonXVelocity;
+                            anim.type = CustomModelAnimType.SinTranslateXVelocity;
                             if (!hasC) { anim.c = 0; }
                             if (!hasD) { anim.d = 0; }
                             anims.Add(anim);
 
                         } else if (attr.CaselessStarts("pistonyvelocity")) {
-                            anim.type = CustomModelAnimType.PistonYVelocity;
+                            anim.type = CustomModelAnimType.SinTranslateYVelocity;
                             if (!hasC) { anim.c = 0; }
                             if (!hasD) { anim.d = 0; }
                             anims.Add(anim);
 
                         } else if (attr.CaselessStarts("pistonzvelocity")) {
-                            anim.type = CustomModelAnimType.PistonZVelocity;
+                            anim.type = CustomModelAnimType.SinTranslateZVelocity;
                             if (!hasC) { anim.c = 0; }
                             if (!hasD) { anim.d = 0; }
                             anims.Add(anim);
 
                         } else if (attr.CaselessStarts("pistonx")) {
-                            anim.type = CustomModelAnimType.PistonX;
+                            anim.type = CustomModelAnimType.SinTranslateX;
                             if (!hasC) { anim.c = 0; }
                             if (!hasD) { anim.d = 0; }
                             anims.Add(anim);
 
                         } else if (attr.CaselessStarts("pistony")) {
-                            anim.type = CustomModelAnimType.PistonY;
+                            anim.type = CustomModelAnimType.SinTranslateY;
                             if (!hasC) { anim.c = 0; }
                             if (!hasD) { anim.d = 0; }
                             anims.Add(anim);
 
                         } else if (attr.CaselessStarts("pistonz")) {
-                            anim.type = CustomModelAnimType.PistonZ;
+                            anim.type = CustomModelAnimType.SinTranslateZ;
                             if (!hasC) { anim.c = 0; }
                             if (!hasD) { anim.d = 0; }
                             anims.Add(anim);
@@ -1990,37 +2027,37 @@ namespace MCGalaxy {
                                 c: shift cycle
                                 d: shift pos
                             */
-                            anim.type = CustomModelAnimType.SinXVelocity;
+                            anim.type = CustomModelAnimType.SinRotateXVelocity;
                             if (!hasC) { anim.c = 0; }
                             if (!hasD) { anim.d = 0; }
                             anims.Add(anim);
 
                         } else if (attr.CaselessStarts("sinyvelocity")) {
-                            anim.type = CustomModelAnimType.SinYVelocity;
+                            anim.type = CustomModelAnimType.SinRotateYVelocity;
                             if (!hasC) { anim.c = 0; }
                             if (!hasD) { anim.d = 0; }
                             anims.Add(anim);
 
                         } else if (attr.CaselessStarts("sinzvelocity")) {
-                            anim.type = CustomModelAnimType.SinZVelocity;
+                            anim.type = CustomModelAnimType.SinRotateZVelocity;
                             if (!hasC) { anim.c = 0; }
                             if (!hasD) { anim.d = 0; }
                             anims.Add(anim);
 
                         } else if (attr.CaselessStarts("sinx")) {
-                            anim.type = CustomModelAnimType.SinX;
+                            anim.type = CustomModelAnimType.SinRotateX;
                             if (!hasC) { anim.c = 0; }
                             if (!hasD) { anim.d = 0; }
                             anims.Add(anim);
 
                         } else if (attr.CaselessStarts("siny")) {
-                            anim.type = CustomModelAnimType.SinY;
+                            anim.type = CustomModelAnimType.SinRotateY;
                             if (!hasC) { anim.c = 0; }
                             if (!hasD) { anim.d = 0; }
                             anims.Add(anim);
 
                         } else if (attr.CaselessStarts("sinz")) {
-                            anim.type = CustomModelAnimType.SinZ;
+                            anim.type = CustomModelAnimType.SinRotateZ;
                             if (!hasC) { anim.c = 0; }
                             if (!hasD) { anim.d = 0; }
                             anims.Add(anim);
@@ -2033,71 +2070,77 @@ namespace MCGalaxy {
                                 c: shift cycle
                                 d: shift pos
                             */
-                            anim.type = CustomModelAnimType.CosXVelocity;
+                            anim.type = CustomModelAnimType.SinRotateXVelocity;
                             if (!hasC) { anim.c = 0; }
                             if (!hasD) { anim.d = 0; }
+                            anim.c += 0.25f;
                             anims.Add(anim);
 
                         } else if (attr.CaselessStarts("cosyvelocity")) {
-                            anim.type = CustomModelAnimType.CosYVelocity;
+                            anim.type = CustomModelAnimType.SinRotateYVelocity;
                             if (!hasC) { anim.c = 0; }
                             if (!hasD) { anim.d = 0; }
+                            anim.c += 0.25f;
                             anims.Add(anim);
 
                         } else if (attr.CaselessStarts("coszvelocity")) {
-                            anim.type = CustomModelAnimType.CosZVelocity;
+                            anim.type = CustomModelAnimType.SinRotateZVelocity;
                             if (!hasC) { anim.c = 0; }
                             if (!hasD) { anim.d = 0; }
+                            anim.c += 0.25f;
                             anims.Add(anim);
 
                         } else if (attr.CaselessStarts("cosx")) {
-                            anim.type = CustomModelAnimType.CosX;
+                            anim.type = CustomModelAnimType.SinRotateX;
                             if (!hasC) { anim.c = 0; }
                             if (!hasD) { anim.d = 0; }
+                            anim.c += 0.25f;
                             anims.Add(anim);
 
                         } else if (attr.CaselessStarts("cosy")) {
-                            anim.type = CustomModelAnimType.CosY;
+                            anim.type = CustomModelAnimType.SinRotateY;
                             if (!hasC) { anim.c = 0; }
                             if (!hasD) { anim.d = 0; }
+                            anim.c += 0.25f;
                             anims.Add(anim);
 
                         } else if (attr.CaselessStarts("cosz")) {
-                            anim.type = CustomModelAnimType.CosZ;
+                            anim.type = CustomModelAnimType.SinRotateZ;
                             if (!hasC) { anim.c = 0; }
                             if (!hasD) { anim.d = 0; }
+                            anim.c += 0.25f;
                             anims.Add(anim);
 
 
                         } else if (attr.CaselessStarts("leftidle")) {
                             anims.Add(new CustomModelAnim {
-                                type = CustomModelAnimType.SinX,
+                                type = CustomModelAnimType.SinRotateX,
                                 a = ANIM_IDLE_XPERIOD,
                                 b = ANIM_IDLE_MAX,
                                 c = 0,
                                 d = 0,
                             });
                             anims.Add(new CustomModelAnim {
-                                type = CustomModelAnimType.CosZ,
+                                type = CustomModelAnimType.SinRotateZ,
                                 a = ANIM_IDLE_ZPERIOD,
                                 b = -ANIM_IDLE_MAX,
-                                c = 0,
+                                c = 0.25f,
                                 d = 1,
                             });
 
                         } else if (attr.CaselessStarts("rightidle")) {
                             anims.Add(new CustomModelAnim {
-                                type = CustomModelAnimType.SinX,
+                                type = CustomModelAnimType.SinRotateX,
                                 a = ANIM_IDLE_XPERIOD,
                                 b = -ANIM_IDLE_MAX,
                                 c = 0,
                                 d = 0,
                             });
                             anims.Add(new CustomModelAnim {
-                                type = CustomModelAnimType.CosZ,
+                                type = CustomModelAnimType.SinRotateZ,
                                 a = ANIM_IDLE_ZPERIOD,
                                 b = ANIM_IDLE_MAX,
-                                c = 0,
+                                c = 0.25f,
                                 d = 1,
                             });
 
