@@ -308,13 +308,13 @@ namespace MCGalaxy {
                         foreach (var part in parts) {
                             foreach (var anim in part.anims) {
                                 if (
-                                    anim.type == CustomModelAnimType.LeftLeg ||
-                                    anim.type == CustomModelAnimType.RightLeg
+                                    anim.type == CustomModelAnimType.LeftLegX ||
+                                    anim.type == CustomModelAnimType.RightLegX
                                 ) {
                                     // rotate legs to point forward, pointed a little outwards
                                     leg = part;
                                     part.rotation.X = 90.0f;
-                                    part.rotation.Y = anim.type == CustomModelAnimType.LeftLeg ? 5.0f : -5.0f;
+                                    part.rotation.Y = anim.type == CustomModelAnimType.LeftLegX ? 5.0f : -5.0f;
                                     part.rotation.Z = 0;
                                     anim.type = CustomModelAnimType.None;
                                 }
@@ -1885,278 +1885,85 @@ namespace MCGalaxy {
                     };
 
                     var anims = new List<CustomModelAnim>();
-                    var name = e.name.Replace(" ", "");
-                    foreach (var attr in name.SplitComma()) {
-                        float a = 1;
-                        // bool hasA = false;
-                        float b = 1;
-                        bool hasB = false;
-                        float c = 1;
-                        bool hasC = false;
-                        float d = 1;
-                        bool hasD = false;
+                    var partName = e.name.Replace(" ", "");
+                    foreach (var attr in partName.SplitComma()) {
+                        float? a = null;
+                        float? b = null;
+                        float? c = null;
+                        float? d = null;
 
                         var colonSplit = attr.Split(':');
+                        var attrName = colonSplit[0];
                         if (colonSplit.Length >= 2) {
                             var modifiers = colonSplit[1].Replace(" ", "").Split('|');
                             if (modifiers.Length > 0) {
                                 a = float.Parse(modifiers[0]);
-                                // hasA = true;
                                 if (modifiers.Length > 1) {
                                     b = float.Parse(modifiers[1]);
-                                    hasB = true;
                                     if (modifiers.Length > 2) {
                                         c = float.Parse(modifiers[2]);
-                                        hasC = true;
                                         if (modifiers.Length > 3) {
                                             d = float.Parse(modifiers[3]);
-                                            hasD = true;
                                         }
                                     }
                                 }
                             }
                         }
 
-                        var anim = new CustomModelAnim {
-                            type = CustomModelAnimType.None,
-                            a = a,
-                            b = b,
-                            c = c,
-                            d = d,
-                        };
 
-                        if (attr.CaselessStarts("head")) {
-                            anim.type = CustomModelAnimType.Head;
-                            anims.Add(anim);
+                        PartNameToAnim toAnim;
+                        if (PartNamesToAnim.TryGetValue(attrName, out toAnim)) {
+                            anims.AddRange(toAnim.ToAnim(a, b, c, d));
 
-                        } else if (attr.CaselessStarts("leftleg")) {
-                            anim.type = CustomModelAnimType.LeftLeg;
-                            anims.Add(anim);
-
-                        } else if (attr.CaselessStarts("rightleg")) {
-                            anim.type = CustomModelAnimType.RightLeg;
-                            anims.Add(anim);
-
-                        } else if (attr.CaselessStarts("leftarm")) {
-                            anim.type = CustomModelAnimType.LeftArm;
-                            anims.Add(anim);
-
-                        } else if (attr.CaselessStarts("rightarm")) {
-                            anim.type = CustomModelAnimType.RightArm;
-                            anims.Add(anim);
-
-                        } else if (attr.CaselessStarts("spinxvelocity")) {
-                            anim.type = CustomModelAnimType.SpinXVelocity;
-                            if (!hasB) { anim.b = 0; }
-                            anims.Add(anim);
-
-                        } else if (attr.CaselessStarts("spinyvelocity")) {
-                            anim.type = CustomModelAnimType.SpinYVelocity;
-                            if (!hasB) { anim.b = 0; }
-                            anims.Add(anim);
-
-                        } else if (attr.CaselessStarts("spinzvelocity")) {
-                            anim.type = CustomModelAnimType.SpinZVelocity;
-                            if (!hasB) { anim.b = 0; }
-                            anims.Add(anim);
-
-                        } else if (attr.CaselessStarts("spinx")) {
-                            anim.type = CustomModelAnimType.SpinX;
-                            if (!hasB) { anim.b = 0; }
-                            anims.Add(anim);
-
-                        } else if (attr.CaselessStarts("spiny")) {
-                            anim.type = CustomModelAnimType.SpinY;
-                            if (!hasB) { anim.b = 0; }
-                            anims.Add(anim);
-
-                        } else if (attr.CaselessStarts("spinz")) {
-                            anim.type = CustomModelAnimType.SpinZ;
-                            if (!hasB) { anim.b = 0; }
-                            anims.Add(anim);
-
-
-                        } else if (attr.CaselessStarts("pistonxvelocity")) {
-                            /*
-                                a: speed
-                                b: width
-                                c: shift cycle
-                                d: shift pos
-                            */
-                            anim.type = CustomModelAnimType.SinTranslateXVelocity;
-                            if (!hasC) { anim.c = 0; }
-                            if (!hasD) { anim.d = 0; }
-                            anims.Add(anim);
-
-                        } else if (attr.CaselessStarts("pistonyvelocity")) {
-                            anim.type = CustomModelAnimType.SinTranslateYVelocity;
-                            if (!hasC) { anim.c = 0; }
-                            if (!hasD) { anim.d = 0; }
-                            anims.Add(anim);
-
-                        } else if (attr.CaselessStarts("pistonzvelocity")) {
-                            anim.type = CustomModelAnimType.SinTranslateZVelocity;
-                            if (!hasC) { anim.c = 0; }
-                            if (!hasD) { anim.d = 0; }
-                            anims.Add(anim);
-
-                        } else if (attr.CaselessStarts("pistonx")) {
-                            anim.type = CustomModelAnimType.SinTranslateX;
-                            if (!hasC) { anim.c = 0; }
-                            if (!hasD) { anim.d = 0; }
-                            anims.Add(anim);
-
-                        } else if (attr.CaselessStarts("pistony")) {
-                            anim.type = CustomModelAnimType.SinTranslateY;
-                            if (!hasC) { anim.c = 0; }
-                            if (!hasD) { anim.d = 0; }
-                            anims.Add(anim);
-
-                        } else if (attr.CaselessStarts("pistonz")) {
-                            anim.type = CustomModelAnimType.SinTranslateZ;
-                            if (!hasC) { anim.c = 0; }
-                            if (!hasD) { anim.d = 0; }
-                            anims.Add(anim);
-
-
-
-                        } else if (attr.CaselessStarts("sinxvelocity")) {
-                            /*
-                                a: speed
-                                b: width
-                                c: shift cycle
-                                d: shift pos
-                            */
-                            anim.type = CustomModelAnimType.SinRotateXVelocity;
-                            if (!hasC) { anim.c = 0; }
-                            if (!hasD) { anim.d = 0; }
-                            anims.Add(anim);
-
-                        } else if (attr.CaselessStarts("sinyvelocity")) {
-                            anim.type = CustomModelAnimType.SinRotateYVelocity;
-                            if (!hasC) { anim.c = 0; }
-                            if (!hasD) { anim.d = 0; }
-                            anims.Add(anim);
-
-                        } else if (attr.CaselessStarts("sinzvelocity")) {
-                            anim.type = CustomModelAnimType.SinRotateZVelocity;
-                            if (!hasC) { anim.c = 0; }
-                            if (!hasD) { anim.d = 0; }
-                            anims.Add(anim);
-
-                        } else if (attr.CaselessStarts("sinx")) {
-                            anim.type = CustomModelAnimType.SinRotateX;
-                            if (!hasC) { anim.c = 0; }
-                            if (!hasD) { anim.d = 0; }
-                            anims.Add(anim);
-
-                        } else if (attr.CaselessStarts("siny")) {
-                            anim.type = CustomModelAnimType.SinRotateY;
-                            if (!hasC) { anim.c = 0; }
-                            if (!hasD) { anim.d = 0; }
-                            anims.Add(anim);
-
-                        } else if (attr.CaselessStarts("sinz")) {
-                            anim.type = CustomModelAnimType.SinRotateZ;
-                            if (!hasC) { anim.c = 0; }
-                            if (!hasD) { anim.d = 0; }
-                            anims.Add(anim);
-
-
-                        } else if (attr.CaselessStarts("cosxvelocity")) {
-                            /*
-                                a: speed
-                                b: width
-                                c: shift cycle
-                                d: shift pos
-                            */
-                            anim.type = CustomModelAnimType.SinRotateXVelocity;
-                            if (!hasC) { anim.c = 0; }
-                            if (!hasD) { anim.d = 0; }
-                            anim.c += 0.25f;
-                            anims.Add(anim);
-
-                        } else if (attr.CaselessStarts("cosyvelocity")) {
-                            anim.type = CustomModelAnimType.SinRotateYVelocity;
-                            if (!hasC) { anim.c = 0; }
-                            if (!hasD) { anim.d = 0; }
-                            anim.c += 0.25f;
-                            anims.Add(anim);
-
-                        } else if (attr.CaselessStarts("coszvelocity")) {
-                            anim.type = CustomModelAnimType.SinRotateZVelocity;
-                            if (!hasC) { anim.c = 0; }
-                            if (!hasD) { anim.d = 0; }
-                            anim.c += 0.25f;
-                            anims.Add(anim);
-
-                        } else if (attr.CaselessStarts("cosx")) {
-                            anim.type = CustomModelAnimType.SinRotateX;
-                            if (!hasC) { anim.c = 0; }
-                            if (!hasD) { anim.d = 0; }
-                            anim.c += 0.25f;
-                            anims.Add(anim);
-
-                        } else if (attr.CaselessStarts("cosy")) {
-                            anim.type = CustomModelAnimType.SinRotateY;
-                            if (!hasC) { anim.c = 0; }
-                            if (!hasD) { anim.d = 0; }
-                            anim.c += 0.25f;
-                            anims.Add(anim);
-
-                        } else if (attr.CaselessStarts("cosz")) {
-                            anim.type = CustomModelAnimType.SinRotateZ;
-                            if (!hasC) { anim.c = 0; }
-                            if (!hasD) { anim.d = 0; }
-                            anim.c += 0.25f;
-                            anims.Add(anim);
-
-
-                        } else if (attr.CaselessStarts("leftidle")) {
+                        } else if (attrName.CaselessEq("leftidle")) {
                             anims.Add(new CustomModelAnim {
-                                type = CustomModelAnimType.SinRotateX,
+                                type = CustomModelAnimType.SinRotate,
+                                axis = CustomModelAnimAxis.X,
                                 a = ANIM_IDLE_XPERIOD,
                                 b = ANIM_IDLE_MAX,
                                 c = 0,
                                 d = 0,
                             });
                             anims.Add(new CustomModelAnim {
-                                type = CustomModelAnimType.SinRotateZ,
+                                type = CustomModelAnimType.SinRotate,
+                                axis = CustomModelAnimAxis.Z,
                                 a = ANIM_IDLE_ZPERIOD,
                                 b = -ANIM_IDLE_MAX,
                                 c = 0.25f,
                                 d = 1,
                             });
 
-                        } else if (attr.CaselessStarts("rightidle")) {
+                        } else if (attrName.CaselessEq("rightidle")) {
                             anims.Add(new CustomModelAnim {
-                                type = CustomModelAnimType.SinRotateX,
+                                type = CustomModelAnimType.SinRotate,
+                                axis = CustomModelAnimAxis.X,
                                 a = ANIM_IDLE_XPERIOD,
                                 b = -ANIM_IDLE_MAX,
                                 c = 0,
                                 d = 0,
                             });
                             anims.Add(new CustomModelAnim {
-                                type = CustomModelAnimType.SinRotateZ,
+                                type = CustomModelAnimType.SinRotate,
+                                axis = CustomModelAnimAxis.Z,
                                 a = ANIM_IDLE_ZPERIOD,
                                 b = ANIM_IDLE_MAX,
                                 c = 0.25f,
                                 d = 1,
                             });
 
-                        } else if (attr.CaselessStarts("fullbright")) {
+                        } else if (attrName.CaselessEq("fullbright")) {
                             part.fullbright = true;
-                        } else if (attr.CaselessStarts("hand")) {
+                        } else if (attrName.CaselessEq("hand")) {
                             part.firstPersonArm = true;
-                        } else if (attr.CaselessStarts("layer")) {
+                        } else if (attrName.CaselessEq("layer")) {
                             part.layer = true;
-                        } else if (attr.CaselessStarts("humanleftarm")) {
+                        } else if (attrName.CaselessEq("humanleftarm")) {
                             part.skinLeftArm = true;
-                        } else if (attr.CaselessStarts("humanrightarm")) {
+                        } else if (attrName.CaselessEq("humanrightarm")) {
                             part.skinRightArm = true;
-                        } else if (attr.CaselessStarts("humanleftleg")) {
+                        } else if (attrName.CaselessEq("humanleftleg")) {
                             part.skinLeftLeg = true;
-                        } else if (attr.CaselessStarts("humanrightleg")) {
+                        } else if (attrName.CaselessEq("humanrightleg")) {
                             part.skinRightLeg = true;
                         }
                     }
@@ -2164,6 +1971,165 @@ namespace MCGalaxy {
 
                     return part;
                 }
+
+                static Dictionary<string, PartNameToAnim> PartNamesToAnim = new Dictionary<string, PartNameToAnim>(StringComparer.OrdinalIgnoreCase) {
+                    { "head", new PartNameToAnim(CustomModelAnimType.Head, CustomModelAnimAxis.X) },
+                    { "headx", new PartNameToAnim(CustomModelAnimType.Head, CustomModelAnimAxis.X) },
+                    { "heady", new PartNameToAnim(CustomModelAnimType.Head, CustomModelAnimAxis.Y) },
+                    { "headz", new PartNameToAnim(CustomModelAnimType.Head, CustomModelAnimAxis.Z) },
+
+                    { "leftleg", new PartNameToAnim(CustomModelAnimType.LeftLegX, CustomModelAnimAxis.X) },
+                    { "leftlegx", new PartNameToAnim(CustomModelAnimType.LeftLegX, CustomModelAnimAxis.X) },
+                    { "leftlegy", new PartNameToAnim(CustomModelAnimType.LeftLegX, CustomModelAnimAxis.Y) },
+                    { "leftlegz", new PartNameToAnim(CustomModelAnimType.LeftLegX, CustomModelAnimAxis.Z) },
+
+                    { "rightleg", new PartNameToAnim(CustomModelAnimType.RightLegX, CustomModelAnimAxis.X) },
+                    { "rightlegx", new PartNameToAnim(CustomModelAnimType.RightLegX, CustomModelAnimAxis.X) },
+                    { "rightlegy", new PartNameToAnim(CustomModelAnimType.RightLegX, CustomModelAnimAxis.Y) },
+                    { "rightlegz", new PartNameToAnim(CustomModelAnimType.RightLegX, CustomModelAnimAxis.Z) },
+
+                    { "leftarm", new PartNameToAnim(
+                        new []{ CustomModelAnimType.LeftArmX, CustomModelAnimType.LeftArmZ },
+                        new []{ CustomModelAnimAxis.X, CustomModelAnimAxis.Z}
+                    ) },
+                    { "leftarmxx", new PartNameToAnim(CustomModelAnimType.LeftArmX, CustomModelAnimAxis.X) },
+                    { "leftarmxy", new PartNameToAnim(CustomModelAnimType.LeftArmX, CustomModelAnimAxis.Y) },
+                    { "leftarmxz", new PartNameToAnim(CustomModelAnimType.LeftArmX, CustomModelAnimAxis.Z) },
+
+                    { "rightarm", new PartNameToAnim(
+                        new []{ CustomModelAnimType.RightArmX, CustomModelAnimType.RightArmZ },
+                        new []{ CustomModelAnimAxis.X, CustomModelAnimAxis.Z}
+                    ) },
+                    { "rightarmxx", new PartNameToAnim(CustomModelAnimType.RightArmX, CustomModelAnimAxis.X) },
+                    { "rightarmxy", new PartNameToAnim(CustomModelAnimType.RightArmX, CustomModelAnimAxis.Y) },
+                    { "rightarmxz", new PartNameToAnim(CustomModelAnimType.RightArmX, CustomModelAnimAxis.Z) },
+
+                    { "leftarmzx", new PartNameToAnim(CustomModelAnimType.LeftArmZ, CustomModelAnimAxis.X) },
+                    { "leftarmzy", new PartNameToAnim(CustomModelAnimType.LeftArmZ, CustomModelAnimAxis.Y) },
+                    { "leftarmzz", new PartNameToAnim(CustomModelAnimType.LeftArmZ, CustomModelAnimAxis.Z) },
+
+                    { "rightarmzx", new PartNameToAnim(CustomModelAnimType.RightArmZ, CustomModelAnimAxis.X) },
+                    { "rightarmzy", new PartNameToAnim(CustomModelAnimType.RightArmZ, CustomModelAnimAxis.Y) },
+                    { "rightarmzz", new PartNameToAnim(CustomModelAnimType.RightArmZ, CustomModelAnimAxis.Z) },
+
+                    /*
+                        a: speed
+                        b: shift pos
+                    */
+                    { "spinx", new PartNameToAnim(CustomModelAnimType.Spin, CustomModelAnimAxis.X, 1.0f, 0.0f) },
+                    { "spiny", new PartNameToAnim(CustomModelAnimType.Spin, CustomModelAnimAxis.Y, 1.0f, 0.0f) },
+                    { "spinz", new PartNameToAnim(CustomModelAnimType.Spin, CustomModelAnimAxis.Z, 1.0f, 0.0f) },
+
+                    { "spinxvelocity", new PartNameToAnim(CustomModelAnimType.SpinVelocity, CustomModelAnimAxis.X, 1.0f, 0.0f) },
+                    { "spinyvelocity", new PartNameToAnim(CustomModelAnimType.SpinVelocity, CustomModelAnimAxis.Y, 1.0f, 0.0f) },
+                    { "spinzvelocity", new PartNameToAnim(CustomModelAnimType.SpinVelocity, CustomModelAnimAxis.Z, 1.0f, 0.0f) },
+
+                    /*
+                        a: speed
+                        b: width
+                        c: shift cycle
+                        d: shift pos
+                    */
+                    { "sinx", new PartNameToAnim(CustomModelAnimType.SinRotate, CustomModelAnimAxis.X, 1.0f, 1.0f, 0.0f, 0.0f) },
+                    { "siny", new PartNameToAnim(CustomModelAnimType.SinRotate, CustomModelAnimAxis.Y, 1.0f, 1.0f, 0.0f, 0.0f) },
+                    { "sinz", new PartNameToAnim(CustomModelAnimType.SinRotate, CustomModelAnimAxis.Z, 1.0f, 1.0f, 0.0f, 0.0f) },
+
+                    { "sinxvelocity", new PartNameToAnim(CustomModelAnimType.SinRotateVelocity, CustomModelAnimAxis.X, 1.0f, 1.0f, 0.0f, 0.0f) },
+                    { "sinyvelocity", new PartNameToAnim(CustomModelAnimType.SinRotateVelocity, CustomModelAnimAxis.Y, 1.0f, 1.0f, 0.0f, 0.0f) },
+                    { "sinzvelocity", new PartNameToAnim(CustomModelAnimType.SinRotateVelocity, CustomModelAnimAxis.Z, 1.0f, 1.0f, 0.0f, 0.0f) },
+
+                    { "cosx", new PartNameToAnim(CustomModelAnimType.SinRotate, CustomModelAnimAxis.X, 1.0f, 1.0f, 0.0f, 0.0f, (anim) => { anim.c += 0.25f; }) },
+                    { "cosy", new PartNameToAnim(CustomModelAnimType.SinRotate, CustomModelAnimAxis.Y, 1.0f, 1.0f, 0.0f, 0.0f, (anim) => { anim.c += 0.25f; }) },
+                    { "cosz", new PartNameToAnim(CustomModelAnimType.SinRotate, CustomModelAnimAxis.Z, 1.0f, 1.0f, 0.0f, 0.0f, (anim) => { anim.c += 0.25f; }) },
+
+                    { "cosxvelocity", new PartNameToAnim(CustomModelAnimType.SinRotateVelocity, CustomModelAnimAxis.X, 1.0f, 1.0f, 0.0f, 0.0f, (anim) => { anim.c += 0.25f; }) },
+                    { "cosyvelocity", new PartNameToAnim(CustomModelAnimType.SinRotateVelocity, CustomModelAnimAxis.Y, 1.0f, 1.0f, 0.0f, 0.0f, (anim) => { anim.c += 0.25f; }) },
+                    { "coszvelocity", new PartNameToAnim(CustomModelAnimType.SinRotateVelocity, CustomModelAnimAxis.Z, 1.0f, 1.0f, 0.0f, 0.0f, (anim) => { anim.c += 0.25f; }) },
+
+                    { "pistonx", new PartNameToAnim(CustomModelAnimType.SinTranslate, CustomModelAnimAxis.X, 1.0f, 1.0f, 0.0f, 0.0f) },
+                    { "pistony", new PartNameToAnim(CustomModelAnimType.SinTranslate, CustomModelAnimAxis.Y, 1.0f, 1.0f, 0.0f, 0.0f) },
+                    { "pistonz", new PartNameToAnim(CustomModelAnimType.SinTranslate, CustomModelAnimAxis.Z, 1.0f, 1.0f, 0.0f, 0.0f) },
+
+                    { "pistonxvelocity", new PartNameToAnim(CustomModelAnimType.SinTranslateVelocity, CustomModelAnimAxis.X, 1.0f, 1.0f, 0.0f, 0.0f) },
+                    { "pistonyvelocity", new PartNameToAnim(CustomModelAnimType.SinTranslateVelocity, CustomModelAnimAxis.Y, 1.0f, 1.0f, 0.0f, 0.0f) },
+                    { "pistonzvelocity", new PartNameToAnim(CustomModelAnimType.SinTranslateVelocity, CustomModelAnimAxis.Z, 1.0f, 1.0f, 0.0f, 0.0f) },
+                };
+
+                class PartNameToAnim {
+                    CustomModelAnimType[] types;
+                    CustomModelAnimAxis[] axes;
+                    float defaultA;
+                    float defaultB;
+                    float defaultC;
+                    float defaultD;
+                    Action<CustomModelAnim> action;
+
+                    public PartNameToAnim(
+                        CustomModelAnimType[] types,
+                        CustomModelAnimAxis[] axes,
+                        float defaultA = 1.0f,
+                        float defaultB = 1.0f,
+                        float defaultC = 1.0f,
+                        float defaultD = 1.0f,
+                        Action<CustomModelAnim> action = null
+                    ) {
+                        this.types = types;
+                        this.axes = axes;
+                        this.defaultA = defaultA;
+                        this.defaultB = defaultB;
+                        this.defaultC = defaultC;
+                        this.defaultD = defaultD;
+                        this.action = action;
+                    }
+
+                    public PartNameToAnim(
+                        CustomModelAnimType type,
+                        CustomModelAnimAxis axis,
+                        float defaultA = 1.0f,
+                        float defaultB = 1.0f,
+                        float defaultC = 1.0f,
+                        float defaultD = 1.0f,
+                        Action<CustomModelAnim> action = null
+                    ) : this(
+                        new[] { type },
+                        new[] { axis },
+                        defaultA,
+                        defaultB,
+                        defaultC,
+                        defaultD,
+                        action
+
+                    ) { }
+
+                    public CustomModelAnim[] ToAnim(
+                        float? a = null,
+                        float? b = null,
+                        float? c = null,
+                        float? d = null
+                    ) {
+                        var anims = new List<CustomModelAnim>();
+                        for (int i = 0; i < types.Length; i++) {
+                            var type = types[i];
+                            var axis = axes[i];
+
+                            var anim = new CustomModelAnim {
+                                type = type,
+                                axis = axis,
+                                a = a.HasValue ? a.Value : this.defaultA,
+                                b = b.HasValue ? b.Value : this.defaultB,
+                                c = c.HasValue ? c.Value : this.defaultC,
+                                d = d.HasValue ? d.Value : this.defaultD,
+                            };
+                            if (this.action != null) {
+                                this.action.Invoke(anim);
+                            }
+
+                            anims.Add(anim);
+                        }
+                        return anims.ToArray();
+                    }
+                }
+
                 const float MATH_PI = 3.1415926535897931f;
                 const float MATH_DEG2RAD = (MATH_PI / 180.0f);
                 const float ANIM_MAX_ANGLE = (110 * MATH_DEG2RAD);
