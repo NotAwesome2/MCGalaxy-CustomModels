@@ -1,0 +1,3 @@
+[submodule "MCGalaxy"]
+	path = MCGalaxy
+	url = https://github.com/UnknownShadow200/MCGalaxy.git
