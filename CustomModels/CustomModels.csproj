@@ -32,20 +32,17 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
-
     <Reference Include="System.Core" />
-    <Reference Include="System.Drawing" />
-    <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
-
-
-    <Reference Include="Microsoft.CSharp" />
-
     <Reference Include="System.Data" />
-
+    <Reference Include="System.Drawing" />
     <Reference Include="System.Net.Http" />
-
+    <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Xml" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\MCGalaxy\Newtonsoft.Json.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CustomModels.cs" />
@@ -53,11 +50,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\MCGalaxy\MCGalaxy\MCGalaxy_.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <Reference Include="Newtonsoft.Json">
-      <HintPath>..\MCGalaxy\Newtonsoft.Json.dll</HintPath>
-    </Reference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
  </Project>

@@ -6,3 +6,7 @@
   - [CustomModels.dll](https://github.com/SpiralP/MCGalaxy-CustomModels/releases/latest/download/CustomModels.dll)
 - Put the dll into the `plugins` folder where `ClassiCube.exe` lives
 - Run `/plugin load CustomModels`
+
+## Compiling
+
+Run: `dotnet build`
