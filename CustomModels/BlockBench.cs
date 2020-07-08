@@ -1,0 +1,779 @@
+using System;
+using System.Collections.Generic;
+using MCGalaxy.Commands;
+using MCGalaxy.Maths;
+using MCGalaxy.Network;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+
+namespace MCGalaxy {
+    public sealed partial class CustomModelsPlugin {
+
+        class Vec3F32Converter : JsonConverter {
+            public override bool CanConvert(Type objectType) {
+                return objectType == typeof(Vec3F32);
+            }
+
+            public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer) {
+                var obj = JObject.Load(reader);
+                return new Vec3F32 {
+                    X = (float)obj["X"],
+                    Y = (float)obj["Y"],
+                    Z = (float)obj["Z"]
+                };
+            }
+
+            public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer) {
+                var vec = (Vec3F32)value;
+                serializer.Serialize(
+                    writer,
+                    new {
+                        X = vec.X,
+                        Y = vec.Y,
+                        Z = vec.Z
+                    }
+                );
+            }
+        }
+
+        static JsonSerializerSettings jsonSettings = new JsonSerializerSettings {
+            Converters = new[] { new Vec3F32Converter() }
+        };
+
+        // ignore "Field is never assigned to"
+#pragma warning disable 0649
+        class BlockBench {
+
+            public static bool IsValid(string json, Player p, string modelName) {
+                var jsonRoot = Parse(json);
+                var parts = jsonRoot.ToParts();
+
+                if (!jsonRoot.IsValid(p)) {
+                    return false;
+                }
+
+                if (parts.Length > Packet.MaxCustomModelParts) {
+                    p.Message(
+                        "%WNumber of model parts ({0}) exceeds max of {1}!",
+                        parts.Length,
+                        Packet.MaxCustomModelParts
+                    );
+                    return false;
+                }
+
+                // only do size check if they can't upload global models
+                if (!CommandExtraPerms.Find("CustomModel", 1).UsableBy(p.Rank)) {
+                    for (int i = 0; i < parts.Length; i++) {
+                        // Models can be 1 block bigger if they aren't a purely personal model
+                        bool purePersonal = new StoredCustomModel(modelName).IsPersonalPrimary();
+                        float graceLength = purePersonal ? 8.0f : 16.0f;
+
+                        if (
+                            !SizeAllowed(parts[i].min, graceLength) ||
+                            !SizeAllowed(parts[i].max, graceLength)
+                        ) {
+                            p.Message(
+                                "%WThe %b{0} cube in your list %Wis out of bounds.",
+                                ListicleNumber(i + 1)
+                            );
+                            p.Message(
+                                "%WYour {0} may not be larger than %b{1}%W pixels tall or %b{2}%W pixels wide.",
+                                purePersonal ? "personal model" : "model",
+                                maxHeight + graceLength,
+                                maxWidth + graceLength * 2,
+                                graceLength
+                            );
+
+                            if (purePersonal) {
+                                p.Message("These limits only apply to your personal \"%b{0}%S\" model.", p.name.ToLower());
+                                p.Message("Models you upload with other names (e.g, /cm {0}bike upload) can be slightly larger.", p.name.ToLower());
+                            }
+                            return false;
+                        }
+                    }
+                }
+
+                for (int i = 0; i < parts.Length; i++) {
+                    var part = parts[i];
+                    if (part.anims.Length > Packet.MaxCustomModelAnims) {
+                        p.Message(
+                            "%WThe %b{0} cube in your list %Whas more than %b{1} %Wanimations.",
+                            ListicleNumber(i + 1),
+                            Packet.MaxCustomModelAnims
+                        );
+                        break;
+                    }
+                }
+
+                return true;
+            }
+
+
+            //measured in pixels where 16 pixels = 1 block's length
+            public const float maxWidth = 16;
+            public const float maxHeight = 32;
+            // graceLength is how far (in pixels) you can extend past max width/height on all sides
+            static bool SizeAllowed(Vec3F32 boxCorner, float graceLength) {
+                //convert to block-unit to match boxCorner
+                const float maxWidthB = maxWidth / 16f;
+                const float maxHeightB = maxHeight / 16f;
+                float graceLengthB = graceLength / 16f;
+                if (
+                    boxCorner.Y < -graceLengthB ||
+                    boxCorner.Y > maxHeightB + graceLengthB ||
+
+                    boxCorner.X < -((maxWidthB / 2) + graceLengthB) ||
+                    boxCorner.X > (maxWidthB / 2) + graceLengthB ||
+                    boxCorner.Z < -((maxWidthB / 2) + graceLengthB) ||
+                    boxCorner.Z > (maxWidthB / 2) + graceLengthB
+                ) {
+                    return false;
+                }
+                return true;
+            }
+
+
+            public class JsonRoot {
+                public Meta meta;
+                public string name;
+                public Element[] elements;
+                public UuidOrGroup[] outliner;
+                public Resolution resolution;
+
+                public bool IsValid(Player p) {
+                    // warn player if unsupported features were used
+                    bool warnings = false;
+
+                    // check if not free model
+                    if (this.meta.model_format != "free") {
+                        p.Message(
+                            "%WModel uses format %b{0} %W(should be using %b\"Free Model\"%W)!",
+                            this.meta.model_format
+                        );
+                        warnings = true;
+                    }
+
+                    UInt16? lastTexture = null;
+                    Func<JsonRoot.Face, string> bad = (face) => {
+                        // check for uv rotation
+                        if (face.rotation != 0) {
+                            return "uses UV rotation";
+                        }
+
+                        // check for no assigned texture
+                        if (!face.texture.HasValue) {
+                            return "doesn't have a texture";
+                        } else {
+                            // check if using more than 1 texture
+                            if (lastTexture.HasValue) {
+                                if (lastTexture.Value != face.texture.Value) {
+                                    return "uses a different texture";
+                                }
+                            } else {
+                                lastTexture = face.texture.Value;
+                            }
+                        }
+
+                        return null;
+                    };
+                    for (int i = 0; i < this.elements.Length; i++) {
+                        var e = this.elements[i];
+                        string reason = null;
+
+                        Action<string> warn = (faceName) => {
+                            p.Message(
+                                "%WThe %b{0} %Wface on the %b{1} %Wcube {2}!",
+                                faceName,
+                                e.name,
+                                reason
+                            );
+                            warnings = true;
+                        };
+
+                        reason = bad(e.faces.up);
+                        if (reason != null) { warn("up"); }
+                        reason = bad(e.faces.down);
+                        if (reason != null) { warn("down"); }
+                        reason = bad(e.faces.north);
+                        if (reason != null) { warn("north"); }
+                        reason = bad(e.faces.south);
+                        if (reason != null) { warn("south"); }
+                        reason = bad(e.faces.east);
+                        if (reason != null) { warn("east"); }
+                        reason = bad(e.faces.west);
+                        if (reason != null) { warn("west"); }
+                    }
+
+
+                    Action<UuidOrGroup> test = null;
+                    test = (uuidOrGroup) => {
+                        if (uuidOrGroup.group != null) {
+                            var g = uuidOrGroup.group;
+                            // if pivot point exists, and rotation isn't 0
+                            if (
+                                g.rotation[0] != 0 ||
+                                g.rotation[1] != 0 ||
+                                g.rotation[2] != 0
+                            ) {
+                                p.Message(
+                                    "%WThe %b{0} %Wgroup uses rotation!",
+                                    g.name
+                                );
+                                warnings = true;
+                            }
+
+                            foreach (var innerGroup in uuidOrGroup.group.children) {
+                                test(innerGroup);
+                            }
+                        }
+                    };
+                    foreach (var uuidOrGroup in this.outliner) {
+                        test(uuidOrGroup);
+                    }
+
+                    if (warnings) {
+                        p.Message("%WThese BlockBench features aren't supported in ClassiCube.");
+                    }
+
+
+                    return true;
+                }
+
+                public Part[] ToParts() {
+                    var parts = new List<Part>();
+
+                    var elementByUuid = new Dictionary<string, Element>();
+                    foreach (Element e in this.elements) {
+                        elementByUuid.Add(e.uuid, e);
+                    }
+
+                    foreach (var uuidOrGroup in this.outliner) {
+                        HandleGroup(
+                            uuidOrGroup,
+                            elementByUuid,
+                            parts,
+                            new[] { 0.0f, 0.0f, 0.0f },
+                            new[] { 0.0f, 0.0f, 0.0f },
+                            true
+                        );
+                    }
+
+                    return parts.ToArray();
+                }
+
+                void HandleGroup(
+                    UuidOrGroup uuidOrGroup,
+                    Dictionary<string, Element> elementByUuid,
+                    List<Part> parts,
+                    float[] rotation,
+                    float[] origin,
+                    bool visibility
+                ) {
+                    if (uuidOrGroup.group == null) {
+                        // a uuid
+
+                        var e = elementByUuid[uuidOrGroup.uuid];
+                        e.rotation[0] += rotation[0];
+                        e.rotation[1] += rotation[1];
+                        e.rotation[2] += rotation[2];
+                        e.origin[0] += origin[0];
+                        e.origin[1] += origin[1];
+                        e.origin[2] += origin[2];
+                        if (!visibility) {
+                            e.visibility = visibility;
+                        }
+                        var part = ToPart(e);
+                        if (part != null) {
+                            parts.Add(part);
+                        }
+                    } else {
+                        // a group
+
+                        var innerRotation = new[] {
+                            uuidOrGroup.group.rotation[0],
+                            uuidOrGroup.group.rotation[1],
+                            uuidOrGroup.group.rotation[2],
+                        };
+                        var innerOrigin = new[] {
+                            uuidOrGroup.group.origin[0],
+                            uuidOrGroup.group.origin[1],
+                            uuidOrGroup.group.origin[2],
+                        };
+                        foreach (var innerGroup in uuidOrGroup.group.children) {
+                            HandleGroup(
+                                innerGroup,
+                                elementByUuid,
+                                parts,
+                                rotation,
+                                origin,
+                                uuidOrGroup.group.visibility
+                            );
+                        }
+                    }
+                }
+
+                Part ToPart(Element e) {
+                    if (!e.visibility) {
+                        return null;
+                    }
+
+                    Vec3F32 rotation = new Vec3F32 { X = 0, Y = 0, Z = 0 };
+                    if (e.rotation != null) {
+                        rotation.X = e.rotation[0];
+                        rotation.Y = e.rotation[1];
+                        rotation.Z = e.rotation[2];
+                    }
+
+                    Vec3F32 min = new Vec3F32 {
+                        X = (e.from[0] - e.inflate) / 16.0f,
+                        Y = (e.from[1] - e.inflate) / 16.0f,
+                        Z = (e.from[2] - e.inflate) / 16.0f,
+                    };
+                    Vec3F32 max = new Vec3F32 {
+                        X = (e.to[0] + e.inflate) / 16.0f,
+                        Y = (e.to[1] + e.inflate) / 16.0f,
+                        Z = (e.to[2] + e.inflate) / 16.0f,
+                    };
+
+                    var rotationOrigin = new Vec3F32 {
+                        X = e.origin[0] / 16.0f,
+                        Y = e.origin[1] / 16.0f,
+                        Z = e.origin[2] / 16.0f,
+                    };
+
+                    // faces in order [u1, v1, u2, v2]
+                    /* uv coords in order: top, bottom, front, back, left, right */
+                    // swap up's uv's
+                    UInt16[] u1 = new UInt16[] {
+                        e.faces.up.uv[2],
+                        e.faces.down.uv[0],
+                        e.faces.north.uv[0],
+                        e.faces.south.uv[0],
+                        e.faces.east.uv[0],
+                        e.faces.west.uv[0],
+                    };
+                    UInt16[] v1 = new[] {
+                        e.faces.up.uv[3],
+                        e.faces.down.uv[1],
+                        e.faces.north.uv[1],
+                        e.faces.south.uv[1],
+                        e.faces.east.uv[1],
+                        e.faces.west.uv[1],
+                    };
+                    UInt16[] u2 = new[] {
+                        e.faces.up.uv[0],
+                        e.faces.down.uv[2],
+                        e.faces.north.uv[2],
+                        e.faces.south.uv[2],
+                        e.faces.east.uv[2],
+                        e.faces.west.uv[2],
+                    };
+                    UInt16[] v2 = new[] {
+                        e.faces.up.uv[1],
+                        e.faces.down.uv[3],
+                        e.faces.north.uv[3],
+                        e.faces.south.uv[3],
+                        e.faces.east.uv[3],
+                        e.faces.west.uv[3],
+                    };
+
+                    var part = new Part {
+                        min = min,
+                        max = max,
+                        u1 = u2,
+                        v1 = v1,
+                        u2 = u1,
+                        v2 = v2,
+                        rotationOrigin = rotationOrigin,
+                        rotation = rotation,
+                    };
+
+                    var anims = new List<CustomModelAnim>();
+                    var partName = e.name.Replace(" ", "");
+                    foreach (var attr in partName.SplitComma()) {
+                        float? a = null;
+                        float? b = null;
+                        float? c = null;
+                        float? d = null;
+
+                        var colonSplit = attr.Split(':');
+                        var attrName = colonSplit[0];
+                        if (colonSplit.Length >= 2) {
+                            var modifiers = colonSplit[1].Replace(" ", "").Split('|');
+                            if (modifiers.Length > 0) {
+                                a = float.Parse(modifiers[0]);
+                                if (modifiers.Length > 1) {
+                                    b = float.Parse(modifiers[1]);
+                                    if (modifiers.Length > 2) {
+                                        c = float.Parse(modifiers[2]);
+                                        if (modifiers.Length > 3) {
+                                            d = float.Parse(modifiers[3]);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+
+                        PartNameToAnim toAnim;
+                        if (PartNamesToAnim.TryGetValue(attrName, out toAnim)) {
+                            anims.AddRange(toAnim.ToAnim(a, b, c, d));
+
+                        } else if (attrName.CaselessEq("leftidle")) {
+                            anims.Add(new CustomModelAnim {
+                                type = CustomModelAnimType.SinRotate,
+                                axis = CustomModelAnimAxis.X,
+                                a = ANIM_IDLE_XPERIOD,
+                                b = ANIM_IDLE_MAX,
+                                c = 0,
+                                d = 0,
+                            });
+                            anims.Add(new CustomModelAnim {
+                                type = CustomModelAnimType.SinRotate,
+                                axis = CustomModelAnimAxis.Z,
+                                a = ANIM_IDLE_ZPERIOD,
+                                b = -ANIM_IDLE_MAX,
+                                c = 0.25f,
+                                d = 1,
+                            });
+
+                        } else if (attrName.CaselessEq("rightidle")) {
+                            anims.Add(new CustomModelAnim {
+                                type = CustomModelAnimType.SinRotate,
+                                axis = CustomModelAnimAxis.X,
+                                a = ANIM_IDLE_XPERIOD,
+                                b = -ANIM_IDLE_MAX,
+                                c = 0,
+                                d = 0,
+                            });
+                            anims.Add(new CustomModelAnim {
+                                type = CustomModelAnimType.SinRotate,
+                                axis = CustomModelAnimAxis.Z,
+                                a = ANIM_IDLE_ZPERIOD,
+                                b = ANIM_IDLE_MAX,
+                                c = 0.25f,
+                                d = 1,
+                            });
+
+                        } else if (attrName.CaselessEq("fullbright")) {
+                            part.fullbright = true;
+                        } else if (attrName.CaselessEq("hand")) {
+                            part.firstPersonArm = true;
+                        } else if (attrName.CaselessEq("layer")) {
+                            part.layer = true;
+                        } else if (attrName.CaselessEq("humanleftarm")) {
+                            part.skinLeftArm = true;
+                        } else if (attrName.CaselessEq("humanrightarm")) {
+                            part.skinRightArm = true;
+                        } else if (attrName.CaselessEq("humanleftleg")) {
+                            part.skinLeftLeg = true;
+                        } else if (attrName.CaselessEq("humanrightleg")) {
+                            part.skinRightLeg = true;
+                        }
+                    }
+                    part.anims = anims.ToArray();
+
+                    return part;
+                }
+
+                static Dictionary<string, PartNameToAnim> PartNamesToAnim = new Dictionary<string, PartNameToAnim>(StringComparer.OrdinalIgnoreCase) {
+                    { "head", new PartNameToAnim(CustomModelAnimType.Head, CustomModelAnimAxis.X) },
+                    { "headx", new PartNameToAnim(CustomModelAnimType.Head, CustomModelAnimAxis.X) },
+                    { "heady", new PartNameToAnim(CustomModelAnimType.Head, CustomModelAnimAxis.Y) },
+                    { "headz", new PartNameToAnim(CustomModelAnimType.Head, CustomModelAnimAxis.Z) },
+
+                    { "leftleg", new PartNameToAnim(CustomModelAnimType.LeftLegX, CustomModelAnimAxis.X) },
+                    { "leftlegx", new PartNameToAnim(CustomModelAnimType.LeftLegX, CustomModelAnimAxis.X) },
+                    { "leftlegy", new PartNameToAnim(CustomModelAnimType.LeftLegX, CustomModelAnimAxis.Y) },
+                    { "leftlegz", new PartNameToAnim(CustomModelAnimType.LeftLegX, CustomModelAnimAxis.Z) },
+
+                    { "rightleg", new PartNameToAnim(CustomModelAnimType.RightLegX, CustomModelAnimAxis.X) },
+                    { "rightlegx", new PartNameToAnim(CustomModelAnimType.RightLegX, CustomModelAnimAxis.X) },
+                    { "rightlegy", new PartNameToAnim(CustomModelAnimType.RightLegX, CustomModelAnimAxis.Y) },
+                    { "rightlegz", new PartNameToAnim(CustomModelAnimType.RightLegX, CustomModelAnimAxis.Z) },
+
+                    { "leftarm", new PartNameToAnim(
+                        new []{ CustomModelAnimType.LeftArmX, CustomModelAnimType.LeftArmZ },
+                        new []{ CustomModelAnimAxis.X, CustomModelAnimAxis.Z}
+                    ) },
+                    { "leftarmxx", new PartNameToAnim(CustomModelAnimType.LeftArmX, CustomModelAnimAxis.X) },
+                    { "leftarmxy", new PartNameToAnim(CustomModelAnimType.LeftArmX, CustomModelAnimAxis.Y) },
+                    { "leftarmxz", new PartNameToAnim(CustomModelAnimType.LeftArmX, CustomModelAnimAxis.Z) },
+
+                    { "rightarm", new PartNameToAnim(
+                        new []{ CustomModelAnimType.RightArmX, CustomModelAnimType.RightArmZ },
+                        new []{ CustomModelAnimAxis.X, CustomModelAnimAxis.Z}
+                    ) },
+                    { "rightarmxx", new PartNameToAnim(CustomModelAnimType.RightArmX, CustomModelAnimAxis.X) },
+                    { "rightarmxy", new PartNameToAnim(CustomModelAnimType.RightArmX, CustomModelAnimAxis.Y) },
+                    { "rightarmxz", new PartNameToAnim(CustomModelAnimType.RightArmX, CustomModelAnimAxis.Z) },
+
+                    { "leftarmzx", new PartNameToAnim(CustomModelAnimType.LeftArmZ, CustomModelAnimAxis.X) },
+                    { "leftarmzy", new PartNameToAnim(CustomModelAnimType.LeftArmZ, CustomModelAnimAxis.Y) },
+                    { "leftarmzz", new PartNameToAnim(CustomModelAnimType.LeftArmZ, CustomModelAnimAxis.Z) },
+
+                    { "rightarmzx", new PartNameToAnim(CustomModelAnimType.RightArmZ, CustomModelAnimAxis.X) },
+                    { "rightarmzy", new PartNameToAnim(CustomModelAnimType.RightArmZ, CustomModelAnimAxis.Y) },
+                    { "rightarmzz", new PartNameToAnim(CustomModelAnimType.RightArmZ, CustomModelAnimAxis.Z) },
+
+                    /*
+                        a: speed
+                        b: shift pos
+                    */
+                    { "spinx", new PartNameToAnim(CustomModelAnimType.Spin, CustomModelAnimAxis.X, 1.0f, 0.0f) },
+                    { "spiny", new PartNameToAnim(CustomModelAnimType.Spin, CustomModelAnimAxis.Y, 1.0f, 0.0f) },
+                    { "spinz", new PartNameToAnim(CustomModelAnimType.Spin, CustomModelAnimAxis.Z, 1.0f, 0.0f) },
+
+                    { "spinxvelocity", new PartNameToAnim(CustomModelAnimType.SpinVelocity, CustomModelAnimAxis.X, 1.0f, 0.0f) },
+                    { "spinyvelocity", new PartNameToAnim(CustomModelAnimType.SpinVelocity, CustomModelAnimAxis.Y, 1.0f, 0.0f) },
+                    { "spinzvelocity", new PartNameToAnim(CustomModelAnimType.SpinVelocity, CustomModelAnimAxis.Z, 1.0f, 0.0f) },
+
+                    /*
+                        a: speed
+                        b: width
+                        c: shift cycle
+                        d: shift pos
+                    */
+                    { "sinx", new PartNameToAnim(CustomModelAnimType.SinRotate, CustomModelAnimAxis.X, 1.0f, 1.0f, 0.0f, 0.0f) },
+                    { "siny", new PartNameToAnim(CustomModelAnimType.SinRotate, CustomModelAnimAxis.Y, 1.0f, 1.0f, 0.0f, 0.0f) },
+                    { "sinz", new PartNameToAnim(CustomModelAnimType.SinRotate, CustomModelAnimAxis.Z, 1.0f, 1.0f, 0.0f, 0.0f) },
+
+                    { "sinxvelocity", new PartNameToAnim(CustomModelAnimType.SinRotateVelocity, CustomModelAnimAxis.X, 1.0f, 1.0f, 0.0f, 0.0f) },
+                    { "sinyvelocity", new PartNameToAnim(CustomModelAnimType.SinRotateVelocity, CustomModelAnimAxis.Y, 1.0f, 1.0f, 0.0f, 0.0f) },
+                    { "sinzvelocity", new PartNameToAnim(CustomModelAnimType.SinRotateVelocity, CustomModelAnimAxis.Z, 1.0f, 1.0f, 0.0f, 0.0f) },
+
+                    { "cosx", new PartNameToAnim(CustomModelAnimType.SinRotate, CustomModelAnimAxis.X, 1.0f, 1.0f, 0.0f, 0.0f, (anim) => { anim.c += 0.25f; }) },
+                    { "cosy", new PartNameToAnim(CustomModelAnimType.SinRotate, CustomModelAnimAxis.Y, 1.0f, 1.0f, 0.0f, 0.0f, (anim) => { anim.c += 0.25f; }) },
+                    { "cosz", new PartNameToAnim(CustomModelAnimType.SinRotate, CustomModelAnimAxis.Z, 1.0f, 1.0f, 0.0f, 0.0f, (anim) => { anim.c += 0.25f; }) },
+
+                    { "cosxvelocity", new PartNameToAnim(CustomModelAnimType.SinRotateVelocity, CustomModelAnimAxis.X, 1.0f, 1.0f, 0.0f, 0.0f, (anim) => { anim.c += 0.25f; }) },
+                    { "cosyvelocity", new PartNameToAnim(CustomModelAnimType.SinRotateVelocity, CustomModelAnimAxis.Y, 1.0f, 1.0f, 0.0f, 0.0f, (anim) => { anim.c += 0.25f; }) },
+                    { "coszvelocity", new PartNameToAnim(CustomModelAnimType.SinRotateVelocity, CustomModelAnimAxis.Z, 1.0f, 1.0f, 0.0f, 0.0f, (anim) => { anim.c += 0.25f; }) },
+
+                    { "pistonx", new PartNameToAnim(CustomModelAnimType.SinTranslate, CustomModelAnimAxis.X, 1.0f, 1.0f, 0.0f, 0.0f) },
+                    { "pistony", new PartNameToAnim(CustomModelAnimType.SinTranslate, CustomModelAnimAxis.Y, 1.0f, 1.0f, 0.0f, 0.0f) },
+                    { "pistonz", new PartNameToAnim(CustomModelAnimType.SinTranslate, CustomModelAnimAxis.Z, 1.0f, 1.0f, 0.0f, 0.0f) },
+
+                    { "pistonxvelocity", new PartNameToAnim(CustomModelAnimType.SinTranslateVelocity, CustomModelAnimAxis.X, 1.0f, 1.0f, 0.0f, 0.0f) },
+                    { "pistonyvelocity", new PartNameToAnim(CustomModelAnimType.SinTranslateVelocity, CustomModelAnimAxis.Y, 1.0f, 1.0f, 0.0f, 0.0f) },
+                    { "pistonzvelocity", new PartNameToAnim(CustomModelAnimType.SinTranslateVelocity, CustomModelAnimAxis.Z, 1.0f, 1.0f, 0.0f, 0.0f) },
+                };
+
+                class PartNameToAnim {
+                    CustomModelAnimType[] types;
+                    CustomModelAnimAxis[] axes;
+                    float defaultA;
+                    float defaultB;
+                    float defaultC;
+                    float defaultD;
+                    Action<CustomModelAnim> action;
+
+                    public PartNameToAnim(
+                        CustomModelAnimType[] types,
+                        CustomModelAnimAxis[] axes,
+                        float defaultA = 1.0f,
+                        float defaultB = 1.0f,
+                        float defaultC = 1.0f,
+                        float defaultD = 1.0f,
+                        Action<CustomModelAnim> action = null
+                    ) {
+                        this.types = types;
+                        this.axes = axes;
+                        this.defaultA = defaultA;
+                        this.defaultB = defaultB;
+                        this.defaultC = defaultC;
+                        this.defaultD = defaultD;
+                        this.action = action;
+                    }
+
+                    public PartNameToAnim(
+                        CustomModelAnimType type,
+                        CustomModelAnimAxis axis,
+                        float defaultA = 1.0f,
+                        float defaultB = 1.0f,
+                        float defaultC = 1.0f,
+                        float defaultD = 1.0f,
+                        Action<CustomModelAnim> action = null
+                    ) : this(
+                        new[] { type },
+                        new[] { axis },
+                        defaultA,
+                        defaultB,
+                        defaultC,
+                        defaultD,
+                        action
+
+                    ) { }
+
+                    public CustomModelAnim[] ToAnim(
+                        float? a = null,
+                        float? b = null,
+                        float? c = null,
+                        float? d = null
+                    ) {
+                        var anims = new List<CustomModelAnim>();
+                        for (int i = 0; i < types.Length; i++) {
+                            var type = types[i];
+                            var axis = axes[i];
+
+                            var anim = new CustomModelAnim {
+                                type = type,
+                                axis = axis,
+                                a = a.HasValue ? a.Value : this.defaultA,
+                                b = b.HasValue ? b.Value : this.defaultB,
+                                c = c.HasValue ? c.Value : this.defaultC,
+                                d = d.HasValue ? d.Value : this.defaultD,
+                            };
+                            if (this.action != null) {
+                                this.action.Invoke(anim);
+                            }
+
+                            anims.Add(anim);
+                        }
+                        return anims.ToArray();
+                    }
+                }
+
+                const float MATH_PI = 3.1415926535897931f;
+                const float MATH_DEG2RAD = (MATH_PI / 180.0f);
+                const float ANIM_MAX_ANGLE = (110 * MATH_DEG2RAD);
+                const float ANIM_ARM_MAX = (60.0f * MATH_DEG2RAD);
+                const float ANIM_LEG_MAX = (80.0f * MATH_DEG2RAD);
+                const float ANIM_IDLE_MAX = (3.0f * MATH_DEG2RAD);
+                const float ANIM_IDLE_XPERIOD = (2.0f * MATH_PI / 5.0f);
+                const float ANIM_IDLE_ZPERIOD = (2.0f * MATH_PI / 3.5f);
+
+
+                public class Resolution {
+                    public UInt16 width;
+                    public UInt16 height;
+                }
+                public class Meta {
+                    public string model_format;
+                }
+                public class Element {
+                    public Element() {
+                        this.rotation = new[] { 0.0f, 0.0f, 0.0f };
+                        this.origin = new[] { 0.0f, 0.0f, 0.0f };
+                        this.visibility = true;
+                        this.inflate = 0.0f;
+                    }
+
+                    public string name;
+                    // 3 numbers
+                    public float[] from;
+                    // 3 numbers
+                    public float[] to;
+
+                    public bool visibility;
+
+                    // if set to 1, uses a default png with some colors on it,
+                    // we will only support skin pngs, so maybe notify user?
+                    public UInt16 autouv;
+
+                    public float inflate;
+
+                    // if false, mirroring is enabled
+                    // if null, mirroring is disabled
+                    public bool? shade;
+
+                    // 3 numbers
+                    public float[] rotation;
+
+                    /// "Pivot Point"
+                    // 3 numbers
+                    public float[] origin;
+
+                    public Faces faces;
+                    public string uuid;
+                }
+                public class Faces {
+                    public Face north;
+                    public Face east;
+                    public Face south;
+                    public Face west;
+                    public Face up;
+                    public Face down;
+                }
+                public class Face {
+                    public Face() {
+                        this.rotation = 0;
+                    }
+
+                    // 4 numbers
+                    public UInt16[] uv;
+                    public UInt16? texture = null;
+                    public UInt16 rotation = 0;
+                }
+                public class UuidOrGroup {
+                    public string uuid;
+                    public OutlinerGroup group;
+                }
+                public class OutlinerGroup {
+                    public OutlinerGroup() {
+                        this.rotation = new[] { 0.0f, 0.0f, 0.0f };
+                        this.origin = new[] { 0.0f, 0.0f, 0.0f };
+                        this.visibility = true;
+                    }
+                    public string name;
+                    public string uuid;
+
+                    public bool visibility;
+
+                    // 3 numbers
+                    public float[] rotation;
+
+                    /// "Pivot Point"
+                    // 3 numbers
+                    public float[] origin;
+
+                    public UuidOrGroup[] children;
+                }
+                public class JsonUuidOrGroup : JsonConverter {
+                    public override bool CanConvert(Type objectType) {
+                        return objectType == typeof(UuidOrGroup);
+                    }
+
+                    public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer) {
+                        if (reader.TokenType == JsonToken.String) {
+                            JValue jValue = new JValue(reader.Value);
+                            return new UuidOrGroup {
+                                uuid = (string)jValue,
+                                group = null,
+                            };
+                        } else {
+                            JObject jo = JObject.Load(reader);
+                            var group = new OutlinerGroup { };
+                            serializer.Populate(jo.CreateReader(), group);
+                            return new UuidOrGroup {
+                                uuid = null,
+                                group = group,
+                            };
+                        }
+                    }
+
+                    public override bool CanWrite {
+                        get { return false; }
+                    }
+
+                    public override void WriteJson(JsonWriter writer,
+                        object value, JsonSerializer serializer) {
+                        throw new NotImplementedException();
+                    }
+                }
+
+            }
+
+            static JsonSerializerSettings jsonSettings = new JsonSerializerSettings {
+                Converters = new[] { new JsonRoot.JsonUuidOrGroup() }
+            };
+
+            public static JsonRoot Parse(string json) {
+                JsonRoot m = JsonConvert.DeserializeObject<JsonRoot>(json, jsonSettings);
+                return m;
+            }
+        } // class BlockBench
+#pragma warning restore 0649
+
+    } // class CustomModelsPlugin
+} // namespace MCGalaxy

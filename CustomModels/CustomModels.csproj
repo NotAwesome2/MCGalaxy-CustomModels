@@ -46,6 +46,12 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CustomModels.cs" />
+    <Compile Include="StoredCustomModel.cs" />
+    <Compile Include="BlockBench.cs" />
+    <Compile Include="Helpers.cs" />
+    <Compile Include="Memoizer.cs" />
+    <Compile Include="Commands.cs" />
+    <Compile Include="Events.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
