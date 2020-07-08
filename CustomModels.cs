@@ -67,6 +67,7 @@ namespace MCGalaxy {
             public bool pushes = true;
             public bool usesHumanSkin = true;
             public bool calcHumanAnims = true;
+            public string defaultSkin = null;
 
             // json deserialize will call our (name, ...) constructor if no
             // 0 param () constructor exists
@@ -226,6 +227,7 @@ namespace MCGalaxy {
                 this.pushes = o.pushes;
                 this.usesHumanSkin = o.usesHumanSkin;
                 this.calcHumanAnims = o.calcHumanAnims;
+                this.defaultSkin = o.defaultSkin;
             }
 
             public bool Exists() {
@@ -639,6 +641,7 @@ namespace MCGalaxy {
             OnJoinedLevelEvent.Register(OnJoinedLevel, Priority.Low);
             OnSendingModelEvent.Register(OnSendingModel, Priority.Low);
             OnPlayerCommandEvent.Register(OnPlayerCommand, Priority.Low);
+            // OnEntitySpawnedEvent.Register(OnEntitySpawned, Priority.Low);
 
             Directory.CreateDirectory(PublicModelsDirectory);
             Directory.CreateDirectory(PersonalModelsDirectory);
@@ -669,6 +672,7 @@ namespace MCGalaxy {
             OnJoinedLevelEvent.Unregister(OnJoinedLevel);
             OnSendingModelEvent.Unregister(OnSendingModel);
             OnPlayerCommandEvent.Unregister(OnPlayerCommand);
+            // OnEntitySpawnedEvent.Unregister(OnEntitySpawned);
 
             if (command != null) {
                 Command.Unregister(command);
@@ -795,6 +799,7 @@ namespace MCGalaxy {
         static void OnPlayerDisconnect(Player p, string reason) {
             HashSet<string> ignored;
             SentCustomModels.TryRemove(p.name, out ignored);
+
             ConcurrentDictionary<string, byte> ignored2;
             ModelNameToIdForPlayer.TryRemove(p.name, out ignored2);
 
@@ -953,21 +958,51 @@ namespace MCGalaxy {
             //
             // also check if we should remove unused old model
             CheckAddRemove(dst, dst.level);
+
+            // // check if we should use default skin
+            // if (
+            //     e == dst &&
+            //     (
+            //         // unset skin
+            //         dst.SkinName == dst.truename ||
+            //         // or some other unsaved skin
+            //         !Server.skins.Contains(dst.name)
+            //     ) &&
+            //     storedModel.Exists()
+            // ) {
+            // }
         }
 
         static void OnPlayerCommand(Player p, string cmd, string args, CommandData data) {
             if (cmd.CaselessEq("skin")) {
-                var splitArgs = args.SplitSpaces();
-                if (splitArgs.Length > 0) {
-                    var last = splitArgs[splitArgs.Length - 1];
-                    MemoizedGetSkinType.Invalidate(last);
+                var splitArgs = args.Trim().Length == 0 ? new string[] { } : args.SplitSpaces();
+                if (splitArgs.Length == 0) {
+                    // check if we should use default skin
+                    var storedModel = new StoredCustomModel(p.Model);
+                    if (storedModel.Exists()) {
+                        storedModel.LoadFromFile();
+
+                        if (
+                            !storedModel.usesHumanSkin &&
+                            storedModel.defaultSkin != null
+                        ) {
+                            Debug("Setting {0} to defaultSkin {1}", p.name, storedModel.defaultSkin);
+                            p.SkinName = storedModel.defaultSkin;
+                            Entities.GlobalRespawn(p);
+                            p.Message("Changed your own skin to &c" + p.SkinName);
+                            p.cancelcommand = true;
+                        }
+                    } else if (splitArgs.Length > 0) {
+                        var last = splitArgs[splitArgs.Length - 1];
+                        MemoizedGetSkinType.Invalidate(last);
+                    }
                 }
             }
         }
 
         //------------------------------------------------------------------ skin type parsing/model transforming
 
-        // 32x64 (Steve) 64x64 (SteveLayers) 64x64 slim-arm (Alex)
+        // 32x64 (Steve), 64x64 (SteveLayers), 64x64 slim-arm (Alex)
         public enum SkinType { Steve, SteveLayers, Alex };
         // ruthlessly copy-paste-edited from ClassiCube Utils.c (thanks UnknownShadow200)
         static bool IsAllColor(Color solid, Bitmap bmp, int x1, int y1, int width, int height) {
@@ -1366,6 +1401,37 @@ namespace MCGalaxy {
                         "Use Crazy Arms",
                         (model) => model.calcHumanAnims.ToString(),
                         (model, p, input) => CommandParser.GetBool(p, input, ref model.calcHumanAnims)
+                    )
+                },
+                {
+                    "defaultSkin",
+                    new ModelField(
+                        "skin",
+                        "Set default skin",
+                        (model) => model.defaultSkin == null ? "unset" : model.defaultSkin.ToString(),
+                        (model, p, input) => {
+                            if (input.Length == 0 || input == "unset") {
+                                model.defaultSkin = null;
+                                return true;
+                            }
+
+                            var skin = input;
+                            if (skin[0] == '+') {
+                                skin = "https://minotar.net/skin/" + skin.Substring(1) + ".png";
+                            }
+
+                            if (skin.CaselessStarts("http://") || skin.CaselessStarts("https")) {
+                                HttpUtil.FilterURL(ref skin);
+                            }
+
+                            if (skin.Length > NetUtils.StringSize) {
+                                p.Message("The skin must be " + NetUtils.StringSize + " characters or less.");
+                                return false;
+                            }
+
+                            model.defaultSkin = skin;
+                            return true;
+                        }
                     )
                 },
             };
