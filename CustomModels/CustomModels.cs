@@ -1,8 +1,3 @@
-//reference System.dll
-//reference System.Core.dll
-//reference System.Drawing.dll
-//reference Newtonsoft.Json.dll
-
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -24,9 +19,9 @@ using Newtonsoft.Json.Linq;
 
 namespace MCGalaxy {
     public sealed class CustomModelsPlugin : Plugin {
-        public override string name { get { return "CustomModels"; } }
-        public override string MCGalaxy_Version { get { return "1.9.2.2"; } }
-        public override string creator { get { return "SpiralP & Goodly"; } }
+        public override string name => "CustomModels";
+        public override string MCGalaxy_Version => "1.9.2.2";
+        public override string creator => "SpiralP & Goodly";
 
         //------------------------------------------------------------------bbmodel/ccmodel file loading
 
@@ -612,8 +607,7 @@ namespace MCGalaxy {
                     p.Send(modelPacket);
 
                     var modelNameToId = ModelNameToIdForPlayer[p.name];
-                    byte ignored;
-                    modelNameToId.TryRemove(name, out ignored);
+                    modelNameToId.TryRemove(name, out _);
                 }
             }
         }
@@ -797,11 +791,8 @@ namespace MCGalaxy {
         }
 
         static void OnPlayerDisconnect(Player p, string reason) {
-            HashSet<string> ignored;
-            SentCustomModels.TryRemove(p.name, out ignored);
-
-            ConcurrentDictionary<string, byte> ignored2;
-            ModelNameToIdForPlayer.TryRemove(p.name, out ignored2);
+            SentCustomModels.TryRemove(p.name, out _);
+            ModelNameToIdForPlayer.TryRemove(p.name, out _);
 
             Level prevLevel = p.level;
             if (prevLevel != null) {
@@ -892,8 +883,7 @@ namespace MCGalaxy {
                             Debug("weird!");
                         }
 
-                        TaskAndToken ignored;
-                        GetSkinTypeTasks.TryRemove(e, out ignored);
+                        GetSkinTypeTasks.TryRemove(e, out _);
                         Debug("removed {0}; {1} more tasks", skinName, GetSkinTypeTasks.Count);
                     }
                 },
@@ -1068,18 +1058,14 @@ namespace MCGalaxy {
         //------------------------------------------------------------------ commands
 
         class CmdCustomModel : Command2 {
-            public override string name { get { return "CustomModel"; } }
-            public override string shortcut { get { return "cm"; } }
-            public override string type { get { return CommandTypes.Other; } }
-            public override bool MessageBlockRestricted { get { return true; } }
-            public override LevelPermission defaultRank { get { return LevelPermission.AdvBuilder; } }
-            public override CommandPerm[] ExtraPerms {
-                get {
-                    return new[] {
-                        new CommandPerm(LevelPermission.Operator, "can modify/upload public custom models."),
-                    };
-                }
-            }
+            public override string name => "CustomModel";
+            public override string shortcut => "cm";
+            public override string type => CommandTypes.Other;
+            public override bool MessageBlockRestricted => true;
+            public override LevelPermission defaultRank => LevelPermission.AdvBuilder;
+            public override CommandPerm[] ExtraPerms => new[] {
+                new CommandPerm(LevelPermission.Operator, "can modify/upload public custom models."),
+            };
 
             public override void Help(Player p) {
                 p.Message("%T/CustomModel sit");
@@ -2389,8 +2375,7 @@ namespace MCGalaxy {
 
                             Debug("Memoizer1 Removing {0}", key);
                             lock (GetCacheLock(key)) {
-                                CacheEntry ignored;
-                                cache.TryRemove(key, out ignored);
+                                cache.TryRemove(key, out _);
                             }
                         };
                         timer.Start();
