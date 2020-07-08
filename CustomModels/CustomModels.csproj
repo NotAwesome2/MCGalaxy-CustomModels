@@ -52,6 +52,7 @@
     <Compile Include="Memoizer.cs" />
     <Compile Include="Commands.cs" />
     <Compile Include="Events.cs" />
+    <Compile Include="Skins.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
