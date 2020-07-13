@@ -311,9 +311,11 @@ namespace MCGalaxy {
                             storedModel.defaultSkin != null
                         ) {
                             Debug("Setting {0} to defaultSkin {1}", p.name, storedModel.defaultSkin);
-                            p.SkinName = storedModel.defaultSkin;
-                            Entities.GlobalRespawn(p);
-                            p.Message("Changed your own skin to &c" + p.SkinName);
+                            Command.Find("Skin").Use(
+                                p,
+                                "-own " + storedModel.defaultSkin,
+                                data
+                            );
                             p.cancelcommand = true;
                         }
                     } else if (splitArgs.Length > 0) {
