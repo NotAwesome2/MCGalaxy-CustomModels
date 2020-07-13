@@ -271,6 +271,14 @@ namespace MCGalaxy {
                             if (!CommandParser.GetReal(p, input[0], "x", ref model.collisionBounds.X)) return false;
                             if (!CommandParser.GetReal(p, input[1], "y", ref model.collisionBounds.Y)) return false;
                             if (!CommandParser.GetReal(p, input[2], "z", ref model.collisionBounds.Z)) return false;
+                            if (
+                                model.collisionBounds.X <= 0 || model.collisionBounds.X > 100 ||
+                                model.collisionBounds.Y <= 0 || model.collisionBounds.Y > 100 ||
+                                model.collisionBounds.Z <= 0 || model.collisionBounds.Z > 100
+                            ) {
+                                p.Message("%WBad value! Numbers should be in range (0, 100]");
+                                return false;
+                            }
                             return true;
                         },
                         true
@@ -299,6 +307,17 @@ namespace MCGalaxy {
                             if (!CommandParser.GetReal(p, input[3], "maxX", ref model.pickingBoundsMax.X)) return false;
                             if (!CommandParser.GetReal(p, input[4], "maxY", ref model.pickingBoundsMax.Y)) return false;
                             if (!CommandParser.GetReal(p, input[5], "maxZ", ref model.pickingBoundsMax.Z)) return false;
+                            if (
+                                model.pickingBoundsMin.X < -100 || model.pickingBoundsMin.X > 100 ||
+                                model.pickingBoundsMin.Y < -100 || model.pickingBoundsMin.Y > 100 ||
+                                model.pickingBoundsMin.Z < -100 || model.pickingBoundsMin.Z > 100 ||
+                                model.pickingBoundsMax.X < -100 || model.pickingBoundsMax.X > 100 ||
+                                model.pickingBoundsMax.Y < -100 || model.pickingBoundsMax.Y > 100 ||
+                                model.pickingBoundsMax.Z < -100 || model.pickingBoundsMax.Z > 100
+                            ) {
+                                p.Message("%WBad value! Numbers should be in range [-100, 100]");
+                                return false;
+                            }
                             return true;
                         },
                         true

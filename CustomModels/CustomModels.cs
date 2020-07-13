@@ -1,17 +1,9 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Drawing;
 using System.IO;
-using System.Linq;
-using System.Net;
-using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
-using MCGalaxy.Commands;
 using MCGalaxy.Events.EntityEvents;
 using MCGalaxy.Events.PlayerEvents;
-using MCGalaxy.Network;
 
 namespace MCGalaxy {
     public sealed partial class CustomModelsPlugin : Plugin {

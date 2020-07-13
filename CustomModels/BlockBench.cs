@@ -477,44 +477,49 @@ namespace MCGalaxy {
                 }
 
                 static Dictionary<string, PartNameToAnim> PartNamesToAnim = new Dictionary<string, PartNameToAnim>(StringComparer.OrdinalIgnoreCase) {
-                    { "head", new PartNameToAnim(CustomModelAnimType.Head, CustomModelAnimAxis.X) },
-                    { "headx", new PartNameToAnim(CustomModelAnimType.Head, CustomModelAnimAxis.X) },
-                    { "heady", new PartNameToAnim(CustomModelAnimType.Head, CustomModelAnimAxis.Y) },
-                    { "headz", new PartNameToAnim(CustomModelAnimType.Head, CustomModelAnimAxis.Z) },
+                    /*
+                        a: width
+                    */
+                    { "head", new PartNameToAnim(CustomModelAnimType.Head, CustomModelAnimAxis.X, 1.0f) },
+                    { "headx", new PartNameToAnim(CustomModelAnimType.Head, CustomModelAnimAxis.X, 1.0f) },
+                    { "heady", new PartNameToAnim(CustomModelAnimType.Head, CustomModelAnimAxis.Y, 1.0f) },
+                    { "headz", new PartNameToAnim(CustomModelAnimType.Head, CustomModelAnimAxis.Z, 1.0f) },
 
-                    { "leftleg", new PartNameToAnim(CustomModelAnimType.LeftLegX, CustomModelAnimAxis.X) },
-                    { "leftlegx", new PartNameToAnim(CustomModelAnimType.LeftLegX, CustomModelAnimAxis.X) },
-                    { "leftlegy", new PartNameToAnim(CustomModelAnimType.LeftLegX, CustomModelAnimAxis.Y) },
-                    { "leftlegz", new PartNameToAnim(CustomModelAnimType.LeftLegX, CustomModelAnimAxis.Z) },
+                    { "leftleg", new PartNameToAnim(CustomModelAnimType.LeftLegX, CustomModelAnimAxis.X, 1.0f) },
+                    { "leftlegx", new PartNameToAnim(CustomModelAnimType.LeftLegX, CustomModelAnimAxis.X, 1.0f) },
+                    { "leftlegy", new PartNameToAnim(CustomModelAnimType.LeftLegX, CustomModelAnimAxis.Y, 1.0f) },
+                    { "leftlegz", new PartNameToAnim(CustomModelAnimType.LeftLegX, CustomModelAnimAxis.Z, 1.0f) },
 
-                    { "rightleg", new PartNameToAnim(CustomModelAnimType.RightLegX, CustomModelAnimAxis.X) },
-                    { "rightlegx", new PartNameToAnim(CustomModelAnimType.RightLegX, CustomModelAnimAxis.X) },
-                    { "rightlegy", new PartNameToAnim(CustomModelAnimType.RightLegX, CustomModelAnimAxis.Y) },
-                    { "rightlegz", new PartNameToAnim(CustomModelAnimType.RightLegX, CustomModelAnimAxis.Z) },
+                    { "rightleg", new PartNameToAnim(CustomModelAnimType.RightLegX, CustomModelAnimAxis.X, 1.0f) },
+                    { "rightlegx", new PartNameToAnim(CustomModelAnimType.RightLegX, CustomModelAnimAxis.X, 1.0f) },
+                    { "rightlegy", new PartNameToAnim(CustomModelAnimType.RightLegX, CustomModelAnimAxis.Y, 1.0f) },
+                    { "rightlegz", new PartNameToAnim(CustomModelAnimType.RightLegX, CustomModelAnimAxis.Z, 1.0f) },
 
                     { "leftarm", new PartNameToAnim(
                         new []{ CustomModelAnimType.LeftArmX, CustomModelAnimType.LeftArmZ },
-                        new []{ CustomModelAnimAxis.X, CustomModelAnimAxis.Z}
+                        new []{ CustomModelAnimAxis.X, CustomModelAnimAxis.Z},
+                        1.0f
                     ) },
-                    { "leftarmxx", new PartNameToAnim(CustomModelAnimType.LeftArmX, CustomModelAnimAxis.X) },
-                    { "leftarmxy", new PartNameToAnim(CustomModelAnimType.LeftArmX, CustomModelAnimAxis.Y) },
-                    { "leftarmxz", new PartNameToAnim(CustomModelAnimType.LeftArmX, CustomModelAnimAxis.Z) },
+                    { "leftarmxx", new PartNameToAnim(CustomModelAnimType.LeftArmX, CustomModelAnimAxis.X, 1.0f) },
+                    { "leftarmxy", new PartNameToAnim(CustomModelAnimType.LeftArmX, CustomModelAnimAxis.Y, 1.0f) },
+                    { "leftarmxz", new PartNameToAnim(CustomModelAnimType.LeftArmX, CustomModelAnimAxis.Z, 1.0f) },
 
                     { "rightarm", new PartNameToAnim(
                         new []{ CustomModelAnimType.RightArmX, CustomModelAnimType.RightArmZ },
-                        new []{ CustomModelAnimAxis.X, CustomModelAnimAxis.Z}
+                        new []{ CustomModelAnimAxis.X, CustomModelAnimAxis.Z},
+                        1.0f
                     ) },
-                    { "rightarmxx", new PartNameToAnim(CustomModelAnimType.RightArmX, CustomModelAnimAxis.X) },
-                    { "rightarmxy", new PartNameToAnim(CustomModelAnimType.RightArmX, CustomModelAnimAxis.Y) },
-                    { "rightarmxz", new PartNameToAnim(CustomModelAnimType.RightArmX, CustomModelAnimAxis.Z) },
+                    { "rightarmxx", new PartNameToAnim(CustomModelAnimType.RightArmX, CustomModelAnimAxis.X, 1.0f) },
+                    { "rightarmxy", new PartNameToAnim(CustomModelAnimType.RightArmX, CustomModelAnimAxis.Y, 1.0f) },
+                    { "rightarmxz", new PartNameToAnim(CustomModelAnimType.RightArmX, CustomModelAnimAxis.Z, 1.0f) },
 
-                    { "leftarmzx", new PartNameToAnim(CustomModelAnimType.LeftArmZ, CustomModelAnimAxis.X) },
-                    { "leftarmzy", new PartNameToAnim(CustomModelAnimType.LeftArmZ, CustomModelAnimAxis.Y) },
-                    { "leftarmzz", new PartNameToAnim(CustomModelAnimType.LeftArmZ, CustomModelAnimAxis.Z) },
+                    { "leftarmzx", new PartNameToAnim(CustomModelAnimType.LeftArmZ, CustomModelAnimAxis.X, 1.0f) },
+                    { "leftarmzy", new PartNameToAnim(CustomModelAnimType.LeftArmZ, CustomModelAnimAxis.Y, 1.0f) },
+                    { "leftarmzz", new PartNameToAnim(CustomModelAnimType.LeftArmZ, CustomModelAnimAxis.Z, 1.0f) },
 
-                    { "rightarmzx", new PartNameToAnim(CustomModelAnimType.RightArmZ, CustomModelAnimAxis.X) },
-                    { "rightarmzy", new PartNameToAnim(CustomModelAnimType.RightArmZ, CustomModelAnimAxis.Y) },
-                    { "rightarmzz", new PartNameToAnim(CustomModelAnimType.RightArmZ, CustomModelAnimAxis.Z) },
+                    { "rightarmzx", new PartNameToAnim(CustomModelAnimType.RightArmZ, CustomModelAnimAxis.X, 1.0f) },
+                    { "rightarmzy", new PartNameToAnim(CustomModelAnimType.RightArmZ, CustomModelAnimAxis.Y, 1.0f) },
+                    { "rightarmzz", new PartNameToAnim(CustomModelAnimType.RightArmZ, CustomModelAnimAxis.Z, 1.0f) },
 
                     /*
                         a: speed
