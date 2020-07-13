@@ -20,6 +20,7 @@ namespace MCGalaxy {
             [JsonIgnore] public string fileName = null;
 
             public float nameY = 32.5f;
+            public bool autoNameY = true;
             public float eyeY = 26.0f;
             public Vec3F32 collisionBounds = new Vec3F32 {
                 X = 8.6f,
@@ -192,6 +193,7 @@ namespace MCGalaxy {
                 string contentsCC = File.ReadAllText(path);
                 StoredCustomModel o = JsonConvert.DeserializeObject<StoredCustomModel>(contentsCC, jsonSettings);
                 this.nameY = o.nameY;
+                this.autoNameY = o.autoNameY;
                 this.eyeY = o.eyeY;
                 this.collisionBounds = o.collisionBounds;
                 this.pickingBoundsMin = o.pickingBoundsMin;
@@ -270,10 +272,20 @@ namespace MCGalaxy {
                 ) != null;
             }
 
-            public void Define(Player p) {
+            public (CustomModel, CustomModelPart[]) ComputeModelAndParts() {
                 var blockBench = ParseBlockBench();
                 var model = this.ToCustomModel(blockBench);
                 var parts = new List<Part>(blockBench.ToParts());
+
+                if (this.autoNameY) {
+                    float maxPartHeight = 0.0f;
+                    foreach (var part in parts) {
+                        if (part.max.Y > maxPartHeight) {
+                            maxPartHeight = part.max.Y;
+                        }
+                    }
+                    model.nameY = maxPartHeight + 0.5f / 16.0f;
+                }
 
                 if (this.fileName == null) {
                     // only apply modifiers if we aren't a file override
@@ -403,7 +415,13 @@ namespace MCGalaxy {
                     }
                 }
 
-                DefineModel(p, model, parts.Select(part => part.ToCustomModelPart()).ToArray());
+                return (model, parts.Select(part => part.ToCustomModelPart()).ToArray());
+            }
+
+            public void Define(Player p) {
+                var (model, parts) = this.ComputeModelAndParts();
+
+                DefineModel(p, model, parts);
             }
         } // class StoredCustomModel
 

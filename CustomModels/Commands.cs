@@ -232,9 +232,24 @@ namespace MCGalaxy {
                     "nameY",
                     new ModelField(
                         "height",
-                        "Name text height",
-                        (model) => "" + model.nameY,
-                        (model, p, input) => CommandParser.GetReal(p, input, "nameY", ref model.nameY)
+                        "Name text height. Set to 'auto' to detect",
+                        (model) => {
+                            if (model.autoNameY) {
+                                var (customModel, _) = model.ComputeModelAndParts();
+                                return "" + customModel.nameY * 16.0f + " (auto)";
+                            } else {
+                                return "" + model.nameY + " (manual)";
+                            }
+                        },
+                        (model, p, input) => {
+                            if (input.CaselessEq("auto")) {
+                                model.autoNameY = true;
+                                return true;
+                            } else {
+                                model.autoNameY = false;
+                                return CommandParser.GetReal(p, input, "nameY", ref model.nameY);
+                            }
+                        }
                     )
                 },
                 {
@@ -253,7 +268,7 @@ namespace MCGalaxy {
                     "collisionBounds",
                     new ModelField(
                         new string[] {"x", "y", "z"},
-                        "How big you are",
+                        "Affects your collision with blocks",
                         (model) => {
                             return string.Format(
                                 "({0}, {1}, {2})",
@@ -283,7 +298,7 @@ namespace MCGalaxy {
                     "pickingBounds",
                     new ModelField(
                         new string[] {"minX", "minY", "minZ", "maxX", "maxY", "maxZ"},
-                        "Hitbox coordinates",
+                        "Affects render bounds and mouse clicks",
                         (model) => {
                             return string.Format(
                                 "from ({0}, {1}, {2}) to ({3}, {4}, {5})",
