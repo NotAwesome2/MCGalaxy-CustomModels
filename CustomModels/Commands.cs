@@ -42,32 +42,27 @@ namespace MCGalaxy {
                     if (args.Count >= 1) {
                         string subCommand = args.PopFront();
                         if (subCommand.CaselessEq("config") || subCommand.CaselessEq("edit")) {
-                            if (args.Count >= 1) {
-                                string subSubCommand = args.PopFront();
-                                if (subSubCommand.CaselessEq("fields")) {
-                                    var defaultStoredCustomModel = new StoredCustomModel("default");
-                                    foreach (var entry in ModifiableFields) {
-                                        var fieldName = entry.Key;
-                                        var modelField = entry.Value;
+                            var defaultStoredCustomModel = new StoredCustomModel("default");
+                            foreach (var entry in ModifiableFields) {
+                                var fieldName = entry.Key;
+                                var modelField = entry.Value;
 
-                                        if (!modelField.CanEdit(p)) {
-                                            continue;
-                                        }
-
-                                        p.Message(
-                                            "%Tconfig {0} {1}",
-                                            fieldName,
-                                            "[" + modelField.types.Join("] [") + "]"
-                                        );
-                                        p.Message(
-                                            "%H  {0} %S(Default %T{1}%S)",
-                                            modelField.desc,
-                                            modelField.get.Invoke(defaultStoredCustomModel)
-                                        );
-                                    }
-                                    return;
+                                if (!modelField.CanEdit(p)) {
+                                    continue;
                                 }
+
+                                p.Message(
+                                    "%Tconfig {0} {1}",
+                                    fieldName,
+                                    "[" + modelField.types.Join("] [") + "]"
+                                );
+                                p.Message(
+                                    "%H  {0} %S(Default %T{1}%S)",
+                                    modelField.desc,
+                                    modelField.get.Invoke(defaultStoredCustomModel)
+                                );
                             }
+                            return;
                         }
                     }
                 }
