@@ -239,7 +239,7 @@ namespace MCGalaxy {
                                     var (customModel, _) = model.ComputeModelAndParts();
                                     return "" + customModel.nameY * 16.0f + " (auto)";
                                 } catch (System.IO.FileNotFoundException) {
-                                    return "" + model.nameY + " (manual)";
+                                    return "" + model.nameY + " (auto)";
                                 }
                             } else {
                                 return "" + model.nameY + " (manual)";
