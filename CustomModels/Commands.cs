@@ -235,8 +235,12 @@ namespace MCGalaxy {
                         "Name text height. Set to 'auto' to detect",
                         (model) => {
                             if (model.autoNameY) {
-                                var (customModel, _) = model.ComputeModelAndParts();
-                                return "" + customModel.nameY * 16.0f + " (auto)";
+                                try {
+                                    var (customModel, _) = model.ComputeModelAndParts();
+                                    return "" + customModel.nameY * 16.0f + " (auto)";
+                                } catch (System.IO.FileNotFoundException) {
+                                    return "" + model.nameY + " (manual)";
+                                }
                             } else {
                                 return "" + model.nameY + " (manual)";
                             }
