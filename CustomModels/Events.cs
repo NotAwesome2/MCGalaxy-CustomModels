@@ -298,7 +298,7 @@ namespace MCGalaxy {
         }
 
         static void OnPlayerCommand(Player p, string cmd, string args, CommandData data) {
-            if (cmd.CaselessEq("skin")) {
+            if (cmd.CaselessEq("skin") && Hacks.CanUseHacks(p)) {
                 var splitArgs = args.Trim().Length == 0 ? new string[] { } : args.SplitSpaces();
                 if (splitArgs.Length == 0) {
                     // check if we should use default skin
