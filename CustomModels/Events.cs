@@ -41,13 +41,10 @@ namespace MCGalaxy {
 
         // sends all missing models in level to player,
         // and removes all unused models from player
-        static void CheckAddRemove(Player p, Level level, string also = null) {
+        static void CheckAddRemove(Player p, Level level) {
             Debug("CheckAddRemove {0}", p.name);
 
             var visibleModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            if (also != null) {
-                visibleModels.Add(also);
-            }
             visibleModels.Add(ModelInfo.GetRawModel(p.Model));
 
             foreach (Player e in level.getPlayers()) {
@@ -243,8 +240,7 @@ namespace MCGalaxy {
             Debug("OnSendingModel {0}: {1}", dst.name, modelName);
 
             var storedModel = new StoredCustomModel(modelName);
-            var storedModelExists = storedModel.Exists();
-            if (storedModelExists && storedModel.UsesHumanParts()) {
+            if (storedModel.Exists() && storedModel.UsesHumanParts()) {
                 // if this is a custom model and it uses human parts,
                 // check if we need to skin transform
 
@@ -285,7 +281,7 @@ namespace MCGalaxy {
             // before we send the ChangeModel packet
             //
             // also check if we should remove unused old model
-            CheckAddRemove(dst, dst.level, storedModelExists ? modelName : null);
+            CheckAddRemove(dst, dst.level);
 
             // // check if we should use default skin
             // if (
