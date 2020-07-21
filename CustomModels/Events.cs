@@ -54,6 +54,16 @@ namespace MCGalaxy {
                 visibleModels.Add(ModelInfo.GetRawModel(e.Model));
             }
 
+            object obj;
+            if (p.Extras.TryGet("TempBot_BotList", out obj)) {
+                if (obj != null) {
+                    List<PlayerBot> botList = (List<PlayerBot>)obj;
+                    foreach (var bot in botList) {
+                        visibleModels.Add(ModelInfo.GetRawModel(bot.Model));
+                    }
+                }
+            }
+
             // send first so that the new model exists before removing the old one.
             // removing first will cause a couple ms of humanoid to be shown before the new model arrives
             //
@@ -106,6 +116,16 @@ namespace MCGalaxy {
             var loadedLevels = new Dictionary<string, Level>(StringComparer.OrdinalIgnoreCase);
             foreach (Player p in PlayerInfo.Online.Items) {
                 checkEntity(p);
+
+                object obj;
+                if (p.Extras.TryGet("TempBot_BotList", out obj)) {
+                    if (obj != null) {
+                        List<PlayerBot> botList = (List<PlayerBot>)obj;
+                        foreach (var bot in botList) {
+                            checkEntity(bot);
+                        }
+                    }
+                }
 
                 if (!loadedLevels.ContainsKey(p.level.name)) {
                     loadedLevels.Add(p.level.name, p.level);
