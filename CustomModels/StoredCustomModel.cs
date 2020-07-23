@@ -272,7 +272,11 @@ namespace MCGalaxy {
                 ) != null;
             }
 
-            public (CustomModel, CustomModelPart[]) ComputeModelAndParts() {
+            public class ModelAndParts {
+                public CustomModel model;
+                public CustomModelPart[] parts;
+            }
+            public ModelAndParts ComputeModelAndParts() {
                 var blockBench = ParseBlockBench();
                 var model = this.ToCustomModel(blockBench);
                 var parts = new List<Part>(blockBench.ToParts());
@@ -415,13 +419,17 @@ namespace MCGalaxy {
                     }
                 }
 
-                return (model, parts.Select(part => part.ToCustomModelPart()).ToArray());
+                var modelAndParts = new ModelAndParts {
+                    model = model,
+                    parts = parts.Select(part => part.ToCustomModelPart()).ToArray()
+                };
+                return modelAndParts;
             }
 
             public void Define(Player p) {
-                var (model, parts) = this.ComputeModelAndParts();
+                var modelAndParts = this.ComputeModelAndParts();
 
-                DefineModel(p, model, parts);
+                DefineModel(p, modelAndParts.model, modelAndParts.parts);
             }
         } // class StoredCustomModel
 

@@ -236,7 +236,8 @@ namespace MCGalaxy {
                         (model) => {
                             if (model.autoNameY) {
                                 try {
-                                    var (customModel, _) = model.ComputeModelAndParts();
+                                    var modelAndParts = model.ComputeModelAndParts();
+                                    var customModel = modelAndParts.model;
                                     return "" + customModel.nameY * 16.0f + " (auto)";
                                 } catch (System.IO.FileNotFoundException) {
                                     return "" + model.nameY + " (auto)";
