@@ -140,11 +140,15 @@ namespace MCGalaxy {
         }
 
         static void OnPlayerConnect(Player p) {
+            Debug("OnPlayerConnect {0}", p.name);
+
             SentCustomModels.TryAdd(p.name, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
             ModelNameToIdForPlayer.TryAdd(p.name, new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase));
         }
 
         static void OnPlayerDisconnect(Player p, string reason) {
+            Debug("OnPlayerDisconnect {0}", p.name);
+
             SentCustomModels.TryRemove(p.name, out _);
             ModelNameToIdForPlayer.TryRemove(p.name, out _);
 
@@ -160,13 +164,22 @@ namespace MCGalaxy {
         }
 
         static void OnJoiningLevel(Player p, Level level, ref bool canJoin) {
-            Level prevLevel = p.level;
+            if (!canJoin) return;
+
+            Debug("OnJoiningLevel {0} {1}", p.name, level.name);
 
             // send future/new model list to player
             CheckAddRemove(p, level);
         }
 
         static void OnJoinedLevel(Player p, Level prevLevel, Level level, ref bool announce) {
+            Debug(
+                "OnJoinedLevel {0} {1} -> {2}",
+                p.name,
+                prevLevel != null ? prevLevel.name : "null",
+                level.name
+            );
+
             if (prevLevel != null) {
                 // tell other players still on the last map to remove our model
                 // if we were the last one using that model
