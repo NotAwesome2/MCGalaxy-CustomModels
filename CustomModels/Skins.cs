@@ -50,8 +50,7 @@ namespace MCGalaxy {
         }
 
         static Uri GetSkinUrl(string skinName) {
-            Uri uri;
-            if (Uri.TryCreate(skinName, UriKind.Absolute, out uri)) {
+            if (Uri.TryCreate(skinName, UriKind.Absolute, out Uri uri)) {
                 return uri;
             }
 

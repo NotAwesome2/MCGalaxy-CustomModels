@@ -29,7 +29,7 @@ namespace MCGalaxy {
             rhs = temp;
         }
 
-        private static bool debug = false;
+        private static readonly bool debug = false;
         private static void Debug(string format, object arg0, object arg1, object arg2) {
             if (!debug) return;
             Logger.Log(LogType.Debug, format, arg0, arg1, arg2);

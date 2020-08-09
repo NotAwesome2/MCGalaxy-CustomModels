@@ -230,7 +230,7 @@ namespace MCGalaxy {
             }
 
             public string GetModelFileName() {
-                return (this.fileName != null ? this.fileName : this.modelName).ToLower();
+                return (this.fileName ?? this.modelName).ToLower();
             }
 
             public string GetCCPath() {
@@ -386,7 +386,7 @@ namespace MCGalaxy {
                                 part.v2[5] *= 2;
                             }
 
-                            Action<Part, Part> f = (left, right) => {
+                            void f(Part left, Part right) {
                                 // there's only 1 leg/arm in the steve model
                                 left.u1 = (ushort[])right.u1.Clone();
                                 left.u2 = (ushort[])right.u2.Clone();
@@ -402,7 +402,7 @@ namespace MCGalaxy {
                                 Swap(ref left.u2[4], ref left.u2[5]);
                                 Swap(ref left.v1[4], ref left.v1[5]);
                                 Swap(ref left.v2[4], ref left.v2[5]);
-                            };
+                            }
 
                             Part leftArm = parts.Find(part => part.skinLeftArm);
                             Part rightArm = parts.Find(part => part.skinRightArm);
@@ -455,14 +455,13 @@ namespace MCGalaxy {
         }
 
 
-        static ConcurrentDictionary<string, ConcurrentDictionary<string, byte>> ModelNameToIdForPlayer =
+        static readonly ConcurrentDictionary<string, ConcurrentDictionary<string, byte>> ModelNameToIdForPlayer =
             new ConcurrentDictionary<string, ConcurrentDictionary<string, byte>>(StringComparer.OrdinalIgnoreCase);
 
         static byte? GetModelId(Player p, string name, bool addNew = false) {
             lock (ModelNameToIdForPlayer) {
                 var modelNameToId = ModelNameToIdForPlayer[p.name];
-                byte value;
-                if (modelNameToId.TryGetValue(name, out value)) {
+                if (modelNameToId.TryGetValue(name, out byte value)) {
                     return value;
                 } else {
                     if (addNew) {

@@ -102,7 +102,7 @@ namespace MCGalaxy {
 
                         if (subCommand.CaselessEq("config") || subCommand.CaselessEq("edit")) {
                             // /CustomModel config [name] [field] [values...]
-                            Config(p, data, modelName, args);
+                            Config(p, modelName, args);
                             return;
                         } else if (subCommand.CaselessEq("upload") && args.Count == 1) {
                             // /CustomModel upload [name] [url]
@@ -226,7 +226,7 @@ namespace MCGalaxy {
                 }
             }
 
-            static Dictionary<string, ModelField> ModifiableFields =
+            static readonly Dictionary<string, ModelField> ModifiableFields =
                 new Dictionary<string, ModelField>(StringComparer.OrdinalIgnoreCase) {
                 {
                     "nameY",
@@ -407,7 +407,7 @@ namespace MCGalaxy {
                 },
             };
 
-            void Config(Player p, CommandData data, string modelName, List<string> args) {
+            void Config(Player p, string modelName, List<string> args) {
                 StoredCustomModel storedCustomModel = new StoredCustomModel(modelName, true);
                 if (!storedCustomModel.Exists()) {
                     p.Message("%WCustom Model %S{0} %Wnot found!", modelName);

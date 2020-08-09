@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 namespace MCGalaxy {
     public sealed partial class CustomModelsPlugin {
 
-        static ConcurrentDictionary<string, HashSet<string>> SentCustomModels =
+        static readonly ConcurrentDictionary<string, HashSet<string>> SentCustomModels =
             new ConcurrentDictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
 
         static void CheckSendModel(Player p, string modelName) {
@@ -44,8 +44,9 @@ namespace MCGalaxy {
         static void CheckAddRemove(Player p, Level level) {
             Debug("CheckAddRemove {0}", p.name);
 
-            var visibleModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            visibleModels.Add(ModelInfo.GetRawModel(p.Model));
+            var visibleModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
+                ModelInfo.GetRawModel(p.Model)
+            };
 
             foreach (Player e in level.getPlayers()) {
                 visibleModels.Add(ModelInfo.GetRawModel(e.Model));
@@ -54,8 +55,7 @@ namespace MCGalaxy {
                 visibleModels.Add(ModelInfo.GetRawModel(e.Model));
             }
 
-            object obj;
-            if (p.Extras.TryGet("TempBot_BotList", out obj)) {
+            if (p.Extras.TryGet("TempBot_BotList", out object obj)) {
                 if (obj != null) {
                     List<PlayerBot> botList = (List<PlayerBot>)obj;
                     foreach (var bot in botList) {
@@ -105,11 +105,11 @@ namespace MCGalaxy {
                 CheckAddRemove(p, p.level);
             }
 
-            Action<Entity> checkEntity = (e) => {
+            void checkEntity(Entity e) {
                 if (new StoredCustomModel(e.Model).Exists()) {
                     e.UpdateModel(e.Model);
                 }
-            };
+            }
 
             // do ChangeModel on every entity with this model
             // so that we update the model on the client
@@ -117,8 +117,7 @@ namespace MCGalaxy {
             foreach (Player p in PlayerInfo.Online.Items) {
                 checkEntity(p);
 
-                object obj;
-                if (p.Extras.TryGet("TempBot_BotList", out obj)) {
+                if (p.Extras.TryGet("TempBot_BotList", out object obj)) {
                     if (obj != null) {
                         List<PlayerBot> botList = (List<PlayerBot>)obj;
                         foreach (var bot in botList) {
@@ -191,7 +190,7 @@ namespace MCGalaxy {
         }
 
 
-        static Memoizer1<string, SkinType> MemoizedGetSkinType =
+        static readonly Memoizer1<string, SkinType> MemoizedGetSkinType =
             new Memoizer1<string, SkinType>(
                 GetSkinType,
                 // cache for 1 hour
@@ -207,7 +206,7 @@ namespace MCGalaxy {
             public Task task;
             public CancellationTokenSource cancelSource;
         }
-        static ConcurrentDictionary<Entity, TaskAndToken> GetSkinTypeTasks =
+        static readonly ConcurrentDictionary<Entity, TaskAndToken> GetSkinTypeTasks =
             new ConcurrentDictionary<Entity, TaskAndToken>();
 
         static void UpdateModelForSkinType(Entity e, SkinType skinType) {
@@ -279,8 +278,7 @@ namespace MCGalaxy {
 
                 var skinName = e.SkinName;
 
-                SkinType skinType;
-                if (MemoizedGetSkinType.GetCached(skinName, out skinType)) {
+                if (MemoizedGetSkinType.GetCached(skinName, out SkinType skinType)) {
                     var oldModelName = storedModel.GetFullNameWithScale();
                     storedModel.ApplySkinType(skinType);
 

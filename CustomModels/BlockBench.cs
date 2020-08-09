@@ -8,8 +8,7 @@ using Newtonsoft.Json.Linq;
 
 namespace MCGalaxy {
     public sealed partial class CustomModelsPlugin {
-
-        class Vec3F32Converter : JsonConverter {
+        private class Vec3F32Converter : JsonConverter {
             public override bool CanConvert(Type objectType) {
                 return objectType == typeof(Vec3F32);
             }
@@ -28,21 +27,21 @@ namespace MCGalaxy {
                 serializer.Serialize(
                     writer,
                     new {
-                        X = vec.X,
-                        Y = vec.Y,
-                        Z = vec.Z
+                        vec.X,
+                        vec.Y,
+                        vec.Z
                     }
                 );
             }
         }
 
-        static JsonSerializerSettings jsonSettings = new JsonSerializerSettings {
+        private static readonly JsonSerializerSettings jsonSettings = new JsonSerializerSettings {
             Converters = new[] { new Vec3F32Converter() }
         };
 
         // ignore "Field is never assigned to"
 #pragma warning disable 0649
-        class BlockBench {
+        private class BlockBench {
 
             public static bool IsValid(string json, Player p, string modelName) {
                 var jsonRoot = Parse(json);
@@ -80,7 +79,7 @@ namespace MCGalaxy {
                                 "%WYour {0} may not be larger than %b{1}%W pixels tall or %b{2}%W pixels wide.",
                                 purePersonal ? "personal model" : "model",
                                 maxHeight + graceLength,
-                                maxWidth + graceLength * 2,
+                                maxWidth + (graceLength * 2),
                                 graceLength
                             );
 
@@ -109,11 +108,12 @@ namespace MCGalaxy {
             }
 
 
-            //measured in pixels where 16 pixels = 1 block's length
+            // measured in pixels where 16 pixels = 1 block's length
             public const float maxWidth = 16;
             public const float maxHeight = 32;
+
             // graceLength is how far (in pixels) you can extend past max width/height on all sides
-            static bool SizeAllowed(Vec3F32 boxCorner, float graceLength) {
+            private static bool SizeAllowed(Vec3F32 boxCorner, float graceLength) {
                 //convert to block-unit to match boxCorner
                 const float maxWidthB = maxWidth / 16f;
                 const float maxHeightB = maxHeight / 16f;
@@ -154,7 +154,7 @@ namespace MCGalaxy {
                     }
 
                     UInt16? lastTexture = null;
-                    Func<JsonRoot.Face, string> bad = (face) => {
+                    string bad(Face face) {
                         // check for uv rotation
                         if (face.rotation != 0) {
                             return "uses UV rotation";
@@ -175,12 +175,12 @@ namespace MCGalaxy {
                         }
 
                         return null;
-                    };
+                    }
                     for (int i = 0; i < this.elements.Length; i++) {
                         var e = this.elements[i];
-                        string reason = null;
+                        string reason;
 
-                        Action<string> warn = (faceName) => {
+                        void warn(string faceName) {
                             p.Message(
                                 "%WThe %b{0} %Wface on the %b{1} %Wcube {2}!",
                                 faceName,
@@ -188,7 +188,7 @@ namespace MCGalaxy {
                                 reason
                             );
                             warnings = true;
-                        };
+                        }
 
                         reason = bad(e.faces.up);
                         if (reason != null) { warn("up"); }
@@ -205,8 +205,7 @@ namespace MCGalaxy {
                     }
 
 
-                    Action<UuidOrGroup> test = null;
-                    test = (uuidOrGroup) => {
+                    void test(UuidOrGroup uuidOrGroup) {
                         if (uuidOrGroup.group != null) {
                             var g = uuidOrGroup.group;
                             // if pivot point exists, and rotation isn't 0
@@ -226,7 +225,7 @@ namespace MCGalaxy {
                                 test(innerGroup);
                             }
                         }
-                    };
+                    }
                     foreach (var uuidOrGroup in this.outliner) {
                         test(uuidOrGroup);
                     }
@@ -261,7 +260,7 @@ namespace MCGalaxy {
                     return parts.ToArray();
                 }
 
-                void HandleGroup(
+                private void HandleGroup(
                     UuidOrGroup uuidOrGroup,
                     Dictionary<string, Element> elementByUuid,
                     List<Part> parts,
@@ -312,7 +311,7 @@ namespace MCGalaxy {
                     }
                 }
 
-                Part ToPart(Element e) {
+                private Part ToPart(Element e) {
                     if (!e.visibility) {
                         return null;
                     }
@@ -415,8 +414,7 @@ namespace MCGalaxy {
                         }
 
 
-                        PartNameToAnim toAnim;
-                        if (PartNamesToAnim.TryGetValue(attrName, out toAnim)) {
+                        if (PartNamesToAnim.TryGetValue(attrName, out PartNameToAnim toAnim)) {
                             anims.AddRange(toAnim.ToAnim(a, b, c, d));
 
                         } else if (attrName.CaselessEq("leftidle")) {
@@ -476,7 +474,8 @@ namespace MCGalaxy {
                     return part;
                 }
 
-                static Dictionary<string, PartNameToAnim> PartNamesToAnim = new Dictionary<string, PartNameToAnim>(StringComparer.OrdinalIgnoreCase) {
+                private static readonly Dictionary<string, PartNameToAnim> PartNamesToAnim =
+                    new Dictionary<string, PartNameToAnim>(StringComparer.OrdinalIgnoreCase) {
                     /*
                         a: width
                     */
@@ -565,13 +564,13 @@ namespace MCGalaxy {
                 };
 
                 class PartNameToAnim {
-                    CustomModelAnimType[] types;
-                    CustomModelAnimAxis[] axes;
-                    float defaultA;
-                    float defaultB;
-                    float defaultC;
-                    float defaultD;
-                    Action<CustomModelAnim> action;
+                    private readonly CustomModelAnimType[] types;
+                    private readonly CustomModelAnimAxis[] axes;
+                    private readonly float defaultA;
+                    private readonly float defaultB;
+                    private readonly float defaultC;
+                    private readonly float defaultD;
+                    private readonly Action<CustomModelAnim> action;
 
                     public PartNameToAnim(
                         CustomModelAnimType[] types,
@@ -624,10 +623,10 @@ namespace MCGalaxy {
                             var anim = new CustomModelAnim {
                                 type = type,
                                 axis = axis,
-                                a = a.HasValue ? a.Value : this.defaultA,
-                                b = b.HasValue ? b.Value : this.defaultB,
-                                c = c.HasValue ? c.Value : this.defaultC,
-                                d = d.HasValue ? d.Value : this.defaultD,
+                                a = a ?? this.defaultA,
+                                b = b ?? this.defaultB,
+                                c = c ?? this.defaultC,
+                                d = d ?? this.defaultD,
                             };
                             if (this.action != null) {
                                 this.action.Invoke(anim);
@@ -639,14 +638,14 @@ namespace MCGalaxy {
                     }
                 }
 
-                const float MATH_PI = 3.1415926535897931f;
-                const float MATH_DEG2RAD = (MATH_PI / 180.0f);
-                const float ANIM_MAX_ANGLE = (110 * MATH_DEG2RAD);
-                const float ANIM_ARM_MAX = (60.0f * MATH_DEG2RAD);
-                const float ANIM_LEG_MAX = (80.0f * MATH_DEG2RAD);
-                const float ANIM_IDLE_MAX = (3.0f * MATH_DEG2RAD);
-                const float ANIM_IDLE_XPERIOD = (2.0f * MATH_PI / 5.0f);
-                const float ANIM_IDLE_ZPERIOD = (2.0f * MATH_PI / 3.5f);
+                private const float MATH_PI = 3.1415926535897931f;
+                private const float MATH_DEG2RAD = MATH_PI / 180.0f;
+                // private const float ANIM_MAX_ANGLE = 110 * MATH_DEG2RAD;
+                // private const float ANIM_ARM_MAX = 60.0f * MATH_DEG2RAD;
+                // private const float ANIM_LEG_MAX = 80.0f * MATH_DEG2RAD;
+                private const float ANIM_IDLE_MAX = 3.0f * MATH_DEG2RAD;
+                private const float ANIM_IDLE_XPERIOD = 2.0f * MATH_PI / 5.0f;
+                private const float ANIM_IDLE_ZPERIOD = 2.0f * MATH_PI / 3.5f;
 
 
                 public class Resolution {
@@ -757,10 +756,7 @@ namespace MCGalaxy {
                         }
                     }
 
-                    public override bool CanWrite {
-                        get { return false; }
-                    }
-
+                    public override bool CanWrite => false;
                     public override void WriteJson(JsonWriter writer,
                         object value, JsonSerializer serializer) {
                         throw new NotImplementedException();
@@ -769,7 +765,7 @@ namespace MCGalaxy {
 
             }
 
-            static JsonSerializerSettings jsonSettings = new JsonSerializerSettings {
+            private static readonly JsonSerializerSettings jsonSettings = new JsonSerializerSettings {
                 Converters = new[] { new JsonRoot.JsonUuidOrGroup() }
             };
 
