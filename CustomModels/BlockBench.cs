@@ -208,6 +208,10 @@ namespace MCGalaxy {
                     void test(UuidOrGroup uuidOrGroup) {
                         if (uuidOrGroup.group != null) {
                             var g = uuidOrGroup.group;
+                            // we can't support nested rotation & pivot because
+                            // there is no way to flatten multiple layers of pivots into
+                            // a single pivot and rotation
+
                             // if pivot point exists, and rotation isn't 0
                             if (
                                 g.rotation[0] != 0 ||
@@ -288,23 +292,23 @@ namespace MCGalaxy {
                     } else {
                         // a group
 
-                        var innerRotation = new[] {
-                            uuidOrGroup.group.rotation[0],
-                            uuidOrGroup.group.rotation[1],
-                            uuidOrGroup.group.rotation[2],
+                        var totalRotation = new[] {
+                            uuidOrGroup.group.rotation[0] + rotation[0],
+                            uuidOrGroup.group.rotation[1] + rotation[1],
+                            uuidOrGroup.group.rotation[2] + rotation[2],
                         };
-                        var innerOrigin = new[] {
-                            uuidOrGroup.group.origin[0],
-                            uuidOrGroup.group.origin[1],
-                            uuidOrGroup.group.origin[2],
+                        var totalOrigin = new[] {
+                            uuidOrGroup.group.origin[0] + origin[0],
+                            uuidOrGroup.group.origin[1] + origin[1],
+                            uuidOrGroup.group.origin[2] + origin[2],
                         };
                         foreach (var innerGroup in uuidOrGroup.group.children) {
                             HandleGroup(
                                 innerGroup,
                                 elementByUuid,
                                 parts,
-                                rotation,
-                                origin,
+                                totalRotation,
+                                totalOrigin,
                                 uuidOrGroup.group.visibility
                             );
                         }
