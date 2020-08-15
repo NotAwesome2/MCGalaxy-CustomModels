@@ -153,7 +153,7 @@ namespace MCGalaxy {
                         warnings = true;
                     }
 
-                    UInt16? lastTexture = null;
+                    string lastTexture = null;
                     string bad(Face face) {
                         // check for uv rotation
                         if (face.rotation != 0) {
@@ -161,16 +161,16 @@ namespace MCGalaxy {
                         }
 
                         // check for no assigned texture
-                        if (!face.texture.HasValue) {
+                        if (face.texture == null) {
                             return "doesn't have a texture";
                         } else {
                             // check if using more than 1 texture
-                            if (lastTexture.HasValue) {
-                                if (lastTexture.Value != face.texture.Value) {
-                                    return "uses a different texture";
+                            if (lastTexture != null) {
+                                if (lastTexture != face.texture) {
+                                    return "uses multiple textures";
                                 }
                             } else {
-                                lastTexture = face.texture.Value;
+                                lastTexture = face.texture;
                             }
                         }
 
@@ -710,7 +710,7 @@ namespace MCGalaxy {
 
                     // 4 numbers
                     public UInt16[] uv;
-                    public UInt16? texture = null;
+                    public string texture = null;
                     public UInt16 rotation = 0;
                 }
                 public class UuidOrGroup {
