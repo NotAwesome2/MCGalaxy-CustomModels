@@ -419,7 +419,7 @@ namespace MCGalaxy {
 
 
                         if (PartNamesToAnim.TryGetValue(attrName, out PartNameToAnim toAnim)) {
-                            anims.AddRange(toAnim.ToAnim(a, b, c, d));
+                            anims.AddRange(toAnim.ToAnim(attrName, a, b, c, d));
 
                         } else if (attrName.CaselessEq("leftidle")) {
                             anims.Add(new CustomModelAnim {
@@ -478,6 +478,11 @@ namespace MCGalaxy {
                     return part;
                 }
 
+                private static readonly Action<CustomModelAnim> FlipValidator = (anim) => {
+                    if (anim.d == 0) {
+                        throw new Exception("max-value is 0");
+                    }
+                };
                 private static readonly Dictionary<string, PartNameToAnim> PartNamesToAnim =
                     new Dictionary<string, PartNameToAnim>(StringComparer.OrdinalIgnoreCase) {
                     /*
@@ -542,6 +547,8 @@ namespace MCGalaxy {
                         c: shift cycle
                         d: shift pos
                     */
+
+                    // rotate
                     { "sinx", new PartNameToAnim(CustomModelAnimType.SinRotate, CustomModelAnimAxis.X, 1.0f, 1.0f, 0.0f, 0.0f) },
                     { "siny", new PartNameToAnim(CustomModelAnimType.SinRotate, CustomModelAnimAxis.Y, 1.0f, 1.0f, 0.0f, 0.0f) },
                     { "sinz", new PartNameToAnim(CustomModelAnimType.SinRotate, CustomModelAnimAxis.Z, 1.0f, 1.0f, 0.0f, 0.0f) },
@@ -558,6 +565,7 @@ namespace MCGalaxy {
                     { "cosyvelocity", new PartNameToAnim(CustomModelAnimType.SinRotateVelocity, CustomModelAnimAxis.Y, 1.0f, 1.0f, 0.0f, 0.0f, (anim) => { anim.c += 0.25f; }) },
                     { "coszvelocity", new PartNameToAnim(CustomModelAnimType.SinRotateVelocity, CustomModelAnimAxis.Z, 1.0f, 1.0f, 0.0f, 0.0f, (anim) => { anim.c += 0.25f; }) },
 
+                    // translate
                     { "pistonx", new PartNameToAnim(CustomModelAnimType.SinTranslate, CustomModelAnimAxis.X, 1.0f, 1.0f, 0.0f, 0.0f) },
                     { "pistony", new PartNameToAnim(CustomModelAnimType.SinTranslate, CustomModelAnimAxis.Y, 1.0f, 1.0f, 0.0f, 0.0f) },
                     { "pistonz", new PartNameToAnim(CustomModelAnimType.SinTranslate, CustomModelAnimAxis.Z, 1.0f, 1.0f, 0.0f, 0.0f) },
@@ -565,6 +573,59 @@ namespace MCGalaxy {
                     { "pistonxvelocity", new PartNameToAnim(CustomModelAnimType.SinTranslateVelocity, CustomModelAnimAxis.X, 1.0f, 1.0f, 0.0f, 0.0f) },
                     { "pistonyvelocity", new PartNameToAnim(CustomModelAnimType.SinTranslateVelocity, CustomModelAnimAxis.Y, 1.0f, 1.0f, 0.0f, 0.0f) },
                     { "pistonzvelocity", new PartNameToAnim(CustomModelAnimType.SinTranslateVelocity, CustomModelAnimAxis.Z, 1.0f, 1.0f, 0.0f, 0.0f) },
+
+                    // size
+                    { "pulsate", new PartNameToAnim(
+                        new []{ CustomModelAnimType.SinSize, CustomModelAnimType.SinSize, CustomModelAnimType.SinSize },
+                        new []{ CustomModelAnimAxis.X, CustomModelAnimAxis.Y, CustomModelAnimAxis.Z},
+                        1.0f, 1.0f, 0.0f, 0.0f
+                    ) },
+                    { "pulsatex", new PartNameToAnim(CustomModelAnimType.SinSize, CustomModelAnimAxis.X, 1.0f, 1.0f, 0.0f, 0.0f) },
+                    { "pulsatey", new PartNameToAnim(CustomModelAnimType.SinSize, CustomModelAnimAxis.Y, 1.0f, 1.0f, 0.0f, 0.0f) },
+                    { "pulsatez", new PartNameToAnim(CustomModelAnimType.SinSize, CustomModelAnimAxis.Z, 1.0f, 1.0f, 0.0f, 0.0f) },
+
+                    { "pulsatevelocity", new PartNameToAnim(
+                        new []{ CustomModelAnimType.SinSizeVelocity, CustomModelAnimType.SinSizeVelocity, CustomModelAnimType.SinSizeVelocity },
+                        new []{ CustomModelAnimAxis.X, CustomModelAnimAxis.Y, CustomModelAnimAxis.Z},
+                        1.0f, 1.0f, 0.0f, 0.0f
+                    ) },
+                    { "pulsatexvelocity", new PartNameToAnim(CustomModelAnimType.SinSizeVelocity, CustomModelAnimAxis.X, 1.0f, 1.0f, 0.0f, 0.0f) },
+                    { "pulsateyvelocity", new PartNameToAnim(CustomModelAnimType.SinSizeVelocity, CustomModelAnimAxis.Y, 1.0f, 1.0f, 0.0f, 0.0f) },
+                    { "pulsatezvelocity", new PartNameToAnim(CustomModelAnimType.SinSizeVelocity, CustomModelAnimAxis.Z, 1.0f, 1.0f, 0.0f, 0.0f) },
+
+
+                    /*
+                        a: speed
+                        b: width
+                        c: shift cycle
+                        d: max value
+                    */
+                    // rotate
+                    { "flipx", new PartNameToAnim(CustomModelAnimType.FlipRotate, CustomModelAnimAxis.X, 1.0f, 1.0f, 0.0f, 1.0f, FlipValidator) },
+                    { "flipy", new PartNameToAnim(CustomModelAnimType.FlipRotate, CustomModelAnimAxis.Y, 1.0f, 1.0f, 0.0f, 1.0f, FlipValidator) },
+                    { "flipz", new PartNameToAnim(CustomModelAnimType.FlipRotate, CustomModelAnimAxis.Z, 1.0f, 1.0f, 0.0f, 1.0f, FlipValidator) },
+
+                    { "flipxvelocity", new PartNameToAnim(CustomModelAnimType.FlipRotateVelocity, CustomModelAnimAxis.X, 1.0f, 1.0f, 0.0f, 1.0f, FlipValidator) },
+                    { "flipyvelocity", new PartNameToAnim(CustomModelAnimType.FlipRotateVelocity, CustomModelAnimAxis.Y, 1.0f, 1.0f, 0.0f, 1.0f, FlipValidator) },
+                    { "flipzvelocity", new PartNameToAnim(CustomModelAnimType.FlipRotateVelocity, CustomModelAnimAxis.Z, 1.0f, 1.0f, 0.0f, 1.0f, FlipValidator) },
+
+                    // translate
+                    { "fliptranslatex", new PartNameToAnim(CustomModelAnimType.FlipTranslate, CustomModelAnimAxis.X, 1.0f, 1.0f, 0.0f, 1.0f, FlipValidator) },
+                    { "fliptranslatey", new PartNameToAnim(CustomModelAnimType.FlipTranslate, CustomModelAnimAxis.Y, 1.0f, 1.0f, 0.0f, 1.0f, FlipValidator) },
+                    { "fliptranslatez", new PartNameToAnim(CustomModelAnimType.FlipTranslate, CustomModelAnimAxis.Z, 1.0f, 1.0f, 0.0f, 1.0f, FlipValidator) },
+
+                    { "fliptranslatexvelocity", new PartNameToAnim(CustomModelAnimType.FlipTranslateVelocity, CustomModelAnimAxis.X, 1.0f, 1.0f, 0.0f, 1.0f, FlipValidator) },
+                    { "fliptranslateyvelocity", new PartNameToAnim(CustomModelAnimType.FlipTranslateVelocity, CustomModelAnimAxis.Y, 1.0f, 1.0f, 0.0f, 1.0f, FlipValidator) },
+                    { "fliptranslatezvelocity", new PartNameToAnim(CustomModelAnimType.FlipTranslateVelocity, CustomModelAnimAxis.Z, 1.0f, 1.0f, 0.0f, 1.0f, FlipValidator) },
+
+                    // size
+                    { "flipsizex", new PartNameToAnim(CustomModelAnimType.FlipSize, CustomModelAnimAxis.X, 1.0f, 1.0f, 0.0f, 1.0f, FlipValidator) },
+                    { "flipsizey", new PartNameToAnim(CustomModelAnimType.FlipSize, CustomModelAnimAxis.Y, 1.0f, 1.0f, 0.0f, 1.0f, FlipValidator) },
+                    { "flipsizez", new PartNameToAnim(CustomModelAnimType.FlipSize, CustomModelAnimAxis.Z, 1.0f, 1.0f, 0.0f, 1.0f, FlipValidator) },
+
+                    { "flipsizexvelocity", new PartNameToAnim(CustomModelAnimType.FlipSizeVelocity, CustomModelAnimAxis.X, 1.0f, 1.0f, 0.0f, 1.0f, FlipValidator) },
+                    { "flipsizeyvelocity", new PartNameToAnim(CustomModelAnimType.FlipSizeVelocity, CustomModelAnimAxis.Y, 1.0f, 1.0f, 0.0f, 1.0f, FlipValidator) },
+                    { "flipsizezvelocity", new PartNameToAnim(CustomModelAnimType.FlipSizeVelocity, CustomModelAnimAxis.Z, 1.0f, 1.0f, 0.0f, 1.0f, FlipValidator) },
                 };
 
                 class PartNameToAnim {
@@ -574,7 +635,7 @@ namespace MCGalaxy {
                     private readonly float defaultB;
                     private readonly float defaultC;
                     private readonly float defaultD;
-                    private readonly Action<CustomModelAnim> action;
+                    private readonly Action<CustomModelAnim> validator;
 
                     public PartNameToAnim(
                         CustomModelAnimType[] types,
@@ -583,7 +644,7 @@ namespace MCGalaxy {
                         float defaultB = 1.0f,
                         float defaultC = 1.0f,
                         float defaultD = 1.0f,
-                        Action<CustomModelAnim> action = null
+                        Action<CustomModelAnim> validator = null
                     ) {
                         this.types = types;
                         this.axes = axes;
@@ -591,7 +652,7 @@ namespace MCGalaxy {
                         this.defaultB = defaultB;
                         this.defaultC = defaultC;
                         this.defaultD = defaultD;
-                        this.action = action;
+                        this.validator = validator;
                     }
 
                     public PartNameToAnim(
@@ -601,7 +662,7 @@ namespace MCGalaxy {
                         float defaultB = 1.0f,
                         float defaultC = 1.0f,
                         float defaultD = 1.0f,
-                        Action<CustomModelAnim> action = null
+                        Action<CustomModelAnim> validator = null
                     ) : this(
                         new[] { type },
                         new[] { axis },
@@ -609,11 +670,11 @@ namespace MCGalaxy {
                         defaultB,
                         defaultC,
                         defaultD,
-                        action
-
+                        validator
                     ) { }
 
                     public CustomModelAnim[] ToAnim(
+                        string attrName,
                         float? a = null,
                         float? b = null,
                         float? c = null,
@@ -632,8 +693,18 @@ namespace MCGalaxy {
                                 c = c ?? this.defaultC,
                                 d = d ?? this.defaultD,
                             };
-                            if (this.action != null) {
-                                this.action.Invoke(anim);
+                            if (this.validator != null) {
+                                try {
+                                    this.validator.Invoke(anim);
+                                } catch (Exception e) {
+                                    throw new Exception(
+                                        string.Format(
+                                            "Couldn't validate {0}: {1}",
+                                            attrName,
+                                            e.Message
+                                        )
+                                    );
+                                }
                             }
 
                             anims.Add(anim);
