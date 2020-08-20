@@ -297,18 +297,18 @@ namespace MCGalaxy {
                             uuidOrGroup.group.rotation[1] + rotation[1],
                             uuidOrGroup.group.rotation[2] + rotation[2],
                         };
-                        var totalOrigin = new[] {
-                            uuidOrGroup.group.origin[0] + origin[0],
-                            uuidOrGroup.group.origin[1] + origin[1],
-                            uuidOrGroup.group.origin[2] + origin[2],
-                        };
+                        // var totalOrigin = new[] {
+                        //     uuidOrGroup.group.origin[0] + origin[0],
+                        //     uuidOrGroup.group.origin[1] + origin[1],
+                        //     uuidOrGroup.group.origin[2] + origin[2],
+                        // };
                         foreach (var innerGroup in uuidOrGroup.group.children) {
                             HandleGroup(
                                 innerGroup,
                                 elementByUuid,
                                 parts,
                                 totalRotation,
-                                totalOrigin,
+                                origin,
                                 uuidOrGroup.group.visibility
                             );
                         }
