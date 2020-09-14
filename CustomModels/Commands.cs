@@ -524,6 +524,12 @@ namespace MCGalaxy {
                 var folderPath = playerName == null
                     ? PublicModelsDirectory
                     : StoredCustomModel.GetFolderPath(playerName);
+					
+				if (playerName != null && !Directory.Exists(folderPath)) {
+					p.Message("Player \"{0}\" has not created any models.", playerName);
+					return;
+				}
+				
                 var modelNames = new List<string>();
                 foreach (var entry in new DirectoryInfo(folderPath).GetFiles()) {
                     string fileName = entry.Name;
