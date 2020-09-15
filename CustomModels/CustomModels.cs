@@ -122,15 +122,6 @@ namespace MCGalaxy {
 
         CmdCustomModel command = null;
         public override void Load(bool startup) {
-            if (!Server.Config.ClassicubeAccountPlus) {
-                // sorry but i rely on "+" in filenames! :(
-                Logger.Log(
-                    LogType.Warning,
-                    "CustomModels plugin refusing to load due to Config.ClassicubeAccountPlus not being enabled!"
-                );
-                return;
-            }
-
             command = new CmdCustomModel();
             Command.Register(command);
 

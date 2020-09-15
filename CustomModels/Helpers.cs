@@ -3,6 +3,10 @@ using System.Collections.Generic;
 namespace MCGalaxy {
     public sealed partial class CustomModelsPlugin {
 
+        private static string GetNameWithPlus(string name) {
+            return name.EndsWith("+") ? name : name + "+";
+        }
+
         static string ListicleNumber(int n) {
             if (n > 3 && n < 21) { return n + "th"; }
             string suffix;

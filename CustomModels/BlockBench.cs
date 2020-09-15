@@ -84,8 +84,8 @@ namespace MCGalaxy {
                             );
 
                             if (purePersonal) {
-                                p.Message("These limits only apply to your personal \"%b{0}%S\" model.", p.name.ToLower());
-                                p.Message("Models you upload with other names (e.g, /cm {0}bike upload) can be slightly larger.", p.name.ToLower());
+                                p.Message("These limits only apply to your personal \"%b{0}%S\" model.", modelName);
+                                p.Message("Models you upload with other names (e.g, /cm {0}bike upload) can be slightly larger.", modelName);
                             }
                             return false;
                         }

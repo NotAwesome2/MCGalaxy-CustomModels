@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 namespace MCGalaxy {
     public sealed partial class CustomModelsPlugin {
 
+        // [player name] = { model name }
         static readonly ConcurrentDictionary<string, HashSet<string>> SentCustomModels =
             new ConcurrentDictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
 
