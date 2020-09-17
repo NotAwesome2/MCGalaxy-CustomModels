@@ -1,5 +1,7 @@
 # Custom Models plugin for [MCGalaxy](https://github.com/UnknownShadow200/MCGalaxy)
 
+See [the wiki](https://github.com/NotAwesome2/MCGalaxy-CustomModels/wiki) on how to use this thing in game!
+
 ## Installing
 
 - Download the latest dll from GitHub [Releases](https://github.com/SpiralP/MCGalaxy-CustomModels/releases/latest):
