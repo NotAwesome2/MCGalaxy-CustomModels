@@ -15,15 +15,22 @@ namespace MCGalaxy {
             public override bool MessageBlockRestricted => true;
             public override LevelPermission defaultRank => LevelPermission.AdvBuilder;
             public override CommandPerm[] ExtraPerms => new[] {
-                new CommandPerm(LevelPermission.Operator, "can modify/upload public custom models."),
+                // Only Operator+ ...
+                new CommandPerm(LevelPermission.Operator, "can modify/upload public (or other people's) custom models."),
             };
 
             public override void Help(Player p) {
                 p.Message("%T/CustomModel sit");
                 p.Message("%H  Toggle sitting on your worn custom model.");
 
-                p.Message("%T/CustomModel list [player name]");
-                p.Message("%H  List all public or personal custom models.");
+                p.Message("%T/CustomModel list <player name>");
+                p.Message("%H  List all public/personal custom models.");
+
+                p.Message("%T/CustomModel visit <player name>");
+                p.Message("%H  Go to a generated map with all public/personal custom models.");
+
+                p.Message("%T/CustomModel wear [model name]");
+                p.Message("%H  Change your model and skin to a CustomModel.");
 
                 p.Message("%T/CustomModel upload [model name] [bbmodel url]");
                 p.Message("%H  Upload a BlockBench file to use as your personal model.");
@@ -84,13 +91,21 @@ namespace MCGalaxy {
                             // /CustomModel list
                             List(p, null);
                             return;
+                        } else if (subCommand.CaselessEq("visit")) {
+                            // /CustomModel visit
+                            Visit(p, null);
+                            return;
                         }
                     } else if (args.Count >= 1) {
                         var arg = args.PopFront();
 
                         var checkPerms = true;
-                        if (subCommand.CaselessEq("list") && args.Count == 0) {
-                            // anyone can list
+                        if (
+                            subCommand.CaselessEq("list") ||
+                            subCommand.CaselessEq("visit") ||
+                            subCommand.CaselessEq("wear")
+                        ) {
+                            // anyone can list, visit, wear
                             checkPerms = false;
                         }
 
@@ -101,6 +116,15 @@ namespace MCGalaxy {
                             // /CustomModel list [name]
                             List(p, modelName);
                             return;
+                        } else if (subCommand.CaselessEq("visit") && args.Count == 0) {
+                            // /CustomModel visit [name]
+                            Visit(p, modelName);
+                            return;
+                        } else if (subCommand.CaselessEq("wear") && args.Count == 0) {
+                            // /CustomModel wear [name]
+                            Wear(p, modelName, data);
+                            return;
+
                         } else if (subCommand.CaselessEq("config") || subCommand.CaselessEq("edit")) {
                             // /CustomModel config [name] [field] [values...]
                             Config(p, modelName, args);
@@ -522,21 +546,16 @@ namespace MCGalaxy {
                 p.Message("%TCustom Model %S{0} %Wdeleted!", modelName);
             }
 
-            void List(Player p, string playerName = null) {
-                // make sure there's a plus at the end
-                var playerNameWithPlus = StoredCustomModel.GetPlayerName(playerName);
-                if (playerNameWithPlus == null) {
-                    playerNameWithPlus = StoredCustomModel.GetPlayerName(playerName + "+");
-                }
-                playerName = playerNameWithPlus;
 
+
+            List<string> GetModels(string playerName, Player p) {
                 var folderPath = playerName == null
                     ? PublicModelsDirectory
                     : StoredCustomModel.GetFolderPath(playerName);
 
                 if (playerName != null && !Directory.Exists(folderPath)) {
-                    p.Message("Player \"{0}\" has not created any models.", playerName);
-                    return;
+                    p.Message("%WPlayer %S{0} %Whas not created any models.", GetNameWithoutPlus(playerName));
+                    return null;
                 }
 
                 var modelNames = new List<string>();
@@ -547,11 +566,128 @@ namespace MCGalaxy {
                         modelNames.Add(name);
                     }
                 }
+
+                return modelNames;
+            }
+
+            void List(Player p, string playerName = null) {
+                if (playerName != null) {
+                    playerName = GetNameWithPlus(playerName.ToLower());
+                }
+
+                var modelNames = GetModels(playerName, p);
+                if (modelNames == null) return;
+
                 p.Message(
                     "{0} Custom Models: %T{1}",
-                    playerName == null ? "%SPublic" : "%T" + playerName + "%S's",
+                    playerName == null ?
+                        "%SPublic" :
+                        "%T" + GetNameWithoutPlus(playerName) + "%S's",
                     modelNames.Join("%S, %T")
                 );
+            }
+
+            void Visit(Player p, string playerName = null) {
+                if (playerName != null) {
+                    playerName = GetNameWithPlus(playerName.ToLower());
+                }
+
+                var modelNames = GetModels(playerName, p);
+                if (modelNames == null) return;
+
+                var mapName = string.Format(
+                    "&f{0} Custom Models",
+                    playerName == null
+                        ? "Public"
+                        : GetNameWithoutPlus(playerName) + "'s"
+                );
+
+                ushort spacing = 4;
+                ushort width = (ushort)(
+                    // edges
+                    (spacing * 2) +
+                    // grass blocks
+                    modelNames.Count +
+                    // inbetween blocks
+                    ((modelNames.Count - 1) * (spacing - 1))
+                );
+                ushort height = 1;
+                ushort length = 16;
+                byte[] blocks = new byte[width * height * length];
+
+                Level lvl = new Level(mapName, width, height, length, blocks);
+                for (int i = 0; i < blocks.Length; i++) {
+                    blocks[i] = 1;
+                }
+
+                lvl.SetPhysics(0);
+                lvl.backedup = true;
+                lvl.BuildAccess.Min = LevelPermission.Nobody;
+                lvl.IsMuseum = true;
+
+                lvl.spawny = 2;
+                lvl.Config.HorizonBlock = 1;
+                lvl.Config.EdgeLevel = 1;
+                lvl.Config.CloudsHeight = -0xFFFFFF;
+                lvl.Config.SidesOffset = 0;
+
+                for (ushort i = 0; i < modelNames.Count; i++) {
+                    ushort x = (ushort)(spacing + (i * spacing));
+                    ushort y = 0;
+                    ushort z = spacing;
+
+                    blocks[lvl.PosToInt(x, y, z)] = 2;
+
+                    var modelName = modelNames[i];
+
+                    var storedModel = new StoredCustomModel(modelName);
+                    if (storedModel.Exists()) {
+                        storedModel.LoadFromFile();
+                    }
+
+                    var skinName = p.SkinName;
+                    if (
+                        !storedModel.usesHumanSkin &&
+                        storedModel.defaultSkin != null
+                    ) {
+                        skinName = storedModel.defaultSkin;
+                    }
+
+                    // hack because clients strip + at the end
+                    var botName = modelName.EndsWith("+") ? modelName + "%f+" : modelName;
+                    var bot = new PlayerBot(botName, lvl) {
+                        id = (byte)i,
+                        Model = modelName,
+                        SkinName = skinName,
+                    };
+                    bot.SetInitialPos(new Position(16 + (32 * x), 16 + (32 * (y + 2)), 16 + (32 * z)));
+                    bot.SetYawPitch(Orientation.DegreesToPacked(180), Orientation.DegreesToPacked(0));
+                    bot.ClickedOnText = "/CustomModel wear " + modelName;
+
+                    _ = lvl.Bots.Add(bot);
+                }
+
+                if (!PlayerActions.ChangeMap(p, lvl)) return;
+            }
+
+            void Wear(Player p, string modelName, CommandData data) {
+
+                // check if we should use default skin
+                var storedCustomModel = new StoredCustomModel(modelName);
+                if (!storedCustomModel.Exists()) {
+                    p.Message("%WCustom Model %S{0} %Wnot found!", modelName);
+                    return;
+                }
+                p.HandleCommand("XModel", modelName, data);
+
+                storedCustomModel.LoadFromFile();
+
+                if (
+                    !storedCustomModel.usesHumanSkin &&
+                    storedCustomModel.defaultSkin != null
+                ) {
+                    p.HandleCommand("Skin", "-own " + storedCustomModel.defaultSkin, data);
+                }
             }
         }
 

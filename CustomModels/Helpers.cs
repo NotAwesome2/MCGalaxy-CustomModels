@@ -7,6 +7,10 @@ namespace MCGalaxy {
             return name.EndsWith("+") ? name : name + "+";
         }
 
+        private static string GetNameWithoutPlus(string name) {
+            return name.EndsWith("+") ? name.Substring(0, name.Length - 1) : name;
+        }
+
         static string ListicleNumber(int n) {
             if (n > 3 && n < 21) { return n + "th"; }
             string suffix;
