@@ -22,7 +22,7 @@ namespace MCGalaxy {
                 p.Message("%T/CustomModel sit");
                 p.Message("%H  Toggle sitting on your worn custom model.");
 
-                p.Message("%T/CustomModel list [-own]");
+                p.Message("%T/CustomModel list [player name]");
                 p.Message("%H  List all public or personal custom models.");
 
                 p.Message("%T/CustomModel upload [model name] [bbmodel url]");
@@ -88,19 +88,20 @@ namespace MCGalaxy {
                     } else if (args.Count >= 1) {
                         var arg = args.PopFront();
 
+                        var checkPerms = true;
                         if (subCommand.CaselessEq("list") && args.Count == 0) {
-                            // /CustomModel list [name]
-                            var ag = TargetModelName(p, data, arg, false);
-                            if (ag == null) return;
-
-                            List(p, StoredCustomModel.GetPlayerName(ag));
-                            return;
+                            // anyone can list
+                            checkPerms = false;
                         }
 
-                        var modelName = TargetModelName(p, data, arg);
+                        var modelName = TargetModelName(p, data, arg, checkPerms);
                         if (modelName == null) return;
 
-                        if (subCommand.CaselessEq("config") || subCommand.CaselessEq("edit")) {
+                        if (subCommand.CaselessEq("list") && args.Count == 0) {
+                            // /CustomModel list [name]
+                            List(p, modelName);
+                            return;
+                        } else if (subCommand.CaselessEq("config") || subCommand.CaselessEq("edit")) {
                             // /CustomModel config [name] [field] [values...]
                             Config(p, modelName, args);
                             return;
@@ -522,6 +523,13 @@ namespace MCGalaxy {
             }
 
             void List(Player p, string playerName = null) {
+                // make sure there's a plus at the end
+                var playerNameWithPlus = StoredCustomModel.GetPlayerName(playerName);
+                if (playerNameWithPlus == null) {
+                    playerNameWithPlus = StoredCustomModel.GetPlayerName(playerName + "+");
+                }
+                playerName = playerNameWithPlus;
+
                 var folderPath = playerName == null
                     ? PublicModelsDirectory
                     : StoredCustomModel.GetFolderPath(playerName);
