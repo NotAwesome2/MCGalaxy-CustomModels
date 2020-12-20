@@ -630,6 +630,8 @@ namespace MCGalaxy {
                 lvl.Config.EdgeLevel = 1;
                 lvl.Config.CloudsHeight = -0xFFFFFF;
                 lvl.Config.SidesOffset = 0;
+                lvl.Config.Buildable = false;
+                lvl.Config.Deletable = false;
 
                 for (ushort i = 0; i < modelNames.Count; i++) {
                     ushort x = (ushort)(spacing + (i * spacing));
