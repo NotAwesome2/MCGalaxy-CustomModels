@@ -49,8 +49,12 @@ namespace MCGalaxy {
                 ModelInfo.GetRawModel(p.Model)
             };
 
-            foreach (Player e in level.getPlayers()) {
-                visibleModels.Add(ModelInfo.GetRawModel(e.Model));
+            if (!level.IsMuseum) {
+                foreach (Player e in level.getPlayers()) {
+                    visibleModels.Add(ModelInfo.GetRawModel(e.Model));
+                }
+            } else {
+                visibleModels.Add(ModelInfo.GetRawModel(p.Model));
             }
             foreach (PlayerBot e in level.Bots.Items) {
                 visibleModels.Add(ModelInfo.GetRawModel(e.Model));
@@ -65,13 +69,10 @@ namespace MCGalaxy {
                 }
             }
 
-            // send first so that the new model exists before removing the old one.
-            // removing first will cause a couple ms of humanoid to be shown before the new model arrives
-            //
-            // send new models not yet in player's list
-            foreach (var modelName in visibleModels) {
-                CheckSendModel(p, modelName);
-            }
+
+            // we must remove old models first before new models so that we have enough CM id's,
+            // but removing first will cause a couple ms of humanoid to be shown before the new model arrives
+            // TODO maybe check if we're about to overflow, and flip order?
 
             lock (SentCustomModels) {
                 var sentModels = SentCustomModels[p.name];
@@ -82,6 +83,11 @@ namespace MCGalaxy {
                         CheckRemoveModel(p, modelName);
                     }
                 }
+            }
+
+            // send new models not yet in player's list
+            foreach (var modelName in visibleModels) {
+                CheckSendModel(p, modelName);
             }
         }
 

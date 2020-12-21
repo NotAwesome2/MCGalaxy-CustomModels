@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace MCGalaxy {
     public sealed partial class CustomModelsPlugin {
@@ -63,6 +65,12 @@ namespace MCGalaxy {
             T r = list[0];
             list.RemoveAt(0);
             return r;
+        }
+
+        public static IEnumerable<List<T>> Partition<T>(this IList<T> source, int size) {
+            for (int i = 0; i < Math.Ceiling(source.Count / (double)size); i++) {
+                yield return new List<T>(source.Skip(size * i).Take(size));
+            }
         }
     }
 

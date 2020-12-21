@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 using MCGalaxy.Commands;
 using MCGalaxy.Network;
@@ -26,7 +27,7 @@ namespace MCGalaxy {
                 p.Message("%T/CustomModel list <player name>");
                 p.Message("%H  List all public/personal custom models.");
 
-                p.Message("%T/CustomModel visit <player name>");
+                p.Message("%T/CustomModel visit <player name> <page>");
                 p.Message("%H  Go to a generated map with all public/personal custom models.");
 
                 p.Message("%T/CustomModel wear [model name]");
@@ -116,10 +117,20 @@ namespace MCGalaxy {
                             // /CustomModel list [name]
                             List(p, modelName);
                             return;
-                        } else if (subCommand.CaselessEq("visit") && args.Count == 0) {
-                            // /CustomModel visit [name]
-                            Visit(p, modelName);
-                            return;
+                        } else if (subCommand.CaselessEq("visit") && (args.Count == 0 || args.Count == 1)) {
+                            // /CustomModel visit [name] <page>
+                            if (args.Count == 0) {
+                                Visit(p, modelName);
+                                return;
+                            } else if (args.Count == 1) {
+                                ushort page = 1;
+                                if (!CommandParser.GetUShort(p, args.PopFront(), "page", ref page)) return;
+                                if (page > 0) {
+                                    page = (ushort)((int)page - 1);
+                                }
+                                Visit(p, modelName, page);
+                                return;
+                            }
                         } else if (subCommand.CaselessEq("wear") && args.Count == 0) {
                             // /CustomModel wear [name]
                             Wear(p, modelName, data);
@@ -587,7 +598,7 @@ namespace MCGalaxy {
                 );
             }
 
-            void Visit(Player p, string playerName = null) {
+            void Visit(Player p, string playerName = null, ushort page = 0) {
                 if (playerName != null) {
                     playerName = GetNameWithPlus(playerName.ToLower());
                 }
@@ -595,11 +606,37 @@ namespace MCGalaxy {
                 var modelNames = GetModels(playerName, p);
                 if (modelNames == null) return;
 
+                // - 1 for our self player
+                var partitionSize = Packet.MaxCustomModels - 1;
+                var partitions = modelNames.Partition(partitionSize).ToList();
+                if (page >= partitions.Count) {
+                    p.Message(
+                        "%WPage doesn't exist"
+                    );
+                    return;
+                }
+                modelNames = partitions[page];
+                if (partitions.Count > 1) {
+                    p.Message(
+                        "%HViewing page %T{0}%H/%T{1}",
+                        page + 1,
+                        partitions.Count
+                    );
+                    if (page < (partitions.Count - 1)) {
+                        p.Message(
+                            "%HUse \"%T/cm visit {0} {1}%H\" to go to the next page",
+                            playerName,
+                            page + 2
+                        );
+                    }
+                }
+
                 var mapName = string.Format(
-                    "&f{0} Custom Models",
+                    "&f{0} Custom Models{1}",
                     playerName == null
                         ? "Public"
-                        : GetNameWithoutPlus(playerName) + "'s"
+                        : GetNameWithoutPlus(playerName) + "'s",
+                    page != 0 ? string.Format(" ({0})", page + 1) : ""
                 );
 
                 ushort spacing = 4;
@@ -662,7 +699,7 @@ namespace MCGalaxy {
                         Model = modelName,
                         SkinName = skinName,
                     };
-                    bot.SetInitialPos(new Position(16 + (32 * x), 16 + (32 * (y + 2)), 16 + (32 * z)));
+                    bot.SetInitialPos(Position.FromFeetBlockCoords(x, y + 1, z));
                     bot.SetYawPitch(Orientation.DegreesToPacked(180), Orientation.DegreesToPacked(0));
                     bot.ClickedOnText = "/CustomModel wear " + modelName;
 
