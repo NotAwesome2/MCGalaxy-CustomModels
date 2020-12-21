@@ -583,7 +583,8 @@ namespace MCGalaxy {
 
             void List(Player p, string playerName = null) {
                 if (playerName != null) {
-                    playerName = GetNameWithPlus(playerName.ToLower());
+                    playerName = playerName.ToLower();
+                    playerName = StoredCustomModel.GetPlayerName(playerName) ?? StoredCustomModel.GetPlayerName(playerName + "+");
                 }
 
                 var modelNames = GetModels(playerName, p);
@@ -600,7 +601,8 @@ namespace MCGalaxy {
 
             void Visit(Player p, string playerName = null, ushort page = 0) {
                 if (playerName != null) {
-                    playerName = GetNameWithPlus(playerName.ToLower());
+                    playerName = playerName.ToLower();
+                    playerName = StoredCustomModel.GetPlayerName(playerName) ?? StoredCustomModel.GetPlayerName(playerName + "+");
                 }
 
                 var modelNames = GetModels(playerName, p);
