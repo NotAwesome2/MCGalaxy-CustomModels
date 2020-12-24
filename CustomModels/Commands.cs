@@ -584,11 +584,17 @@ namespace MCGalaxy {
             Dictionary<string, List<string>> GetAllModels(Player p) {
                 var dict = new Dictionary<string, List<string>>();
 
-                dict.Add("Public", GetModels(null, p));
+                var publicModels = GetModels(null, p);
+                if (publicModels.Count > 0) {
+                    dict.Add("Public", publicModels);
+                }
 
                 foreach (var entry in new DirectoryInfo(PersonalModelsDirectory).GetDirectories()) {
                     string folderName = entry.Name;
-                    dict.Add(folderName, GetModels(folderName, p));
+                    var models = GetModels(folderName, p);
+                    if (models.Count > 0) {
+                        dict.Add(folderName, models);
+                    }
                 }
 
                 return dict;
