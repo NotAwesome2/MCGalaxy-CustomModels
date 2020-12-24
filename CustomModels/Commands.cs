@@ -24,10 +24,10 @@ namespace MCGalaxy {
                 p.Message("%T/CustomModel sit");
                 p.Message("%H  Toggle sitting on your worn custom model.");
 
-                p.Message("%T/CustomModel list <player name>");
+                p.Message("%T/CustomModel list <all/player name>");
                 p.Message("%H  List all public/personal custom models.");
 
-                p.Message("%T/CustomModel visit <player name> <page>");
+                p.Message("%T/CustomModel visit <all/player name> <page>");
                 p.Message("%H  Go to a generated map with all public/personal custom models.");
 
                 p.Message("%T/CustomModel wear [model name]");
@@ -581,31 +581,83 @@ namespace MCGalaxy {
                 return modelNames;
             }
 
-            void List(Player p, string playerName = null) {
-                if (playerName != null) {
-                    playerName = playerName.ToLower();
-                    playerName = StoredCustomModel.GetPlayerName(playerName) ?? StoredCustomModel.GetPlayerName(playerName + "+");
+            Dictionary<string, List<string>> GetAllModels(Player p) {
+                var dict = new Dictionary<string, List<string>>();
+
+                dict.Add("Public", GetModels(null, p));
+
+                foreach (var entry in new DirectoryInfo(PersonalModelsDirectory).GetDirectories()) {
+                    string folderName = entry.Name;
+                    dict.Add(folderName, GetModels(folderName, p));
                 }
 
-                var modelNames = GetModels(playerName, p);
-                if (modelNames == null) return;
+                return dict;
+            }
 
-                p.Message(
-                    "{0} Custom Models: %T{1}",
-                    playerName == null ?
-                        "%SPublic" :
-                        "%T" + GetNameWithoutPlus(playerName) + "%S's",
-                    modelNames.Join("%S, %T")
-                );
+            void List(Player p, string playerName = null) {
+                bool all = false;
+                if (playerName != null) {
+                    playerName = playerName.ToLower();
+                    if (playerName == "all" || playerName == "count") {
+                        all = true;
+                    } else if (playerName == "public") {
+                        playerName = null;
+                    } else {
+                        playerName = StoredCustomModel.GetPlayerName(playerName) ?? StoredCustomModel.GetPlayerName(playerName + "+");
+                    }
+                }
+
+                if (all) {
+                    var dict = GetAllModels(p);
+                    if (dict == null) return;
+
+                    p.Message("%SAll Custom Models");
+                    foreach (var pair in dict.OrderByDescending(pair => pair.Value.Count)) {
+                        p.Message("  %T{0,3}%S: %T{1}", pair.Value.Count, pair.Key);
+                    }
+                } else {
+                    var modelNames = GetModels(playerName, p);
+                    if (modelNames == null) return;
+
+                    p.Message(
+                        "{0} Custom Models: %T{1}",
+                        playerName == null ?
+                            "%SPublic" :
+                            "%T" + (
+                                all ? "All" : GetNameWithoutPlus(playerName) + "%S's"
+                            ),
+                        modelNames.Join("%S, %T")
+                    );
+                }
             }
 
             void Visit(Player p, string playerName = null, ushort page = 0) {
+                bool all = false;
                 if (playerName != null) {
                     playerName = playerName.ToLower();
-                    playerName = StoredCustomModel.GetPlayerName(playerName) ?? StoredCustomModel.GetPlayerName(playerName + "+");
+                    if (playerName == "all") {
+                        all = true;
+                    } else if (playerName == "public") {
+                        playerName = null;
+                    } else {
+                        playerName = StoredCustomModel.GetPlayerName(playerName) ?? StoredCustomModel.GetPlayerName(playerName + "+");
+                    }
                 }
 
-                var modelNames = GetModels(playerName, p);
+                List<string> modelNames;
+                if (all) {
+                    var dict = GetAllModels(p);
+                    modelNames = dict
+                        // public ones first
+                        .OrderByDescending(pair => pair.Key == "Public")
+                        // then by player name A-Z
+                        .ThenBy(pair => pair.Key)
+                        .Select(pair => pair.Value)
+                        .SelectMany(x => x)
+                        .ToList();
+                } else {
+                    modelNames = GetModels(playerName, p);
+                }
                 if (modelNames == null) return;
 
                 // - 1 for our self player
@@ -617,27 +669,34 @@ namespace MCGalaxy {
                     );
                     return;
                 }
+                var total = modelNames.Count;
                 modelNames = partitions[page];
-                if (partitions.Count > 1) {
+                p.Message(
+                    "%HViewing %T{0} %Hmodels{1}",
+                    total,
+                    partitions.Count > 1
+                        ? string.Format(
+                            " %S(page %T{0}%S/%T{1}%S)",
+                            page + 1,
+                            partitions.Count
+                        )
+                        : ""
+                );
+                if (partitions.Count > 1 && page < (partitions.Count - 1)) {
                     p.Message(
-                        "%HViewing page %T{0}%H/%T{1}",
-                        page + 1,
-                        partitions.Count
+                        "%SUse \"%H/cm visit {0} {1}%S\" to go to the next page",
+                        playerName,
+                        page + 2
                     );
-                    if (page < (partitions.Count - 1)) {
-                        p.Message(
-                            "%HUse \"%T/cm visit {0} {1}%H\" to go to the next page",
-                            playerName,
-                            page + 2
-                        );
-                    }
                 }
 
                 var mapName = string.Format(
                     "&f{0} Custom Models{1}",
-                    playerName == null
-                        ? "Public"
-                        : GetNameWithoutPlus(playerName) + "'s",
+                    all ? "All" : (
+                        playerName == null
+                            ? "Public"
+                            : GetNameWithoutPlus(playerName) + "'s"
+                        ),
                     page != 0 ? string.Format(" ({0})", page + 1) : ""
                 );
 
@@ -664,6 +723,7 @@ namespace MCGalaxy {
                 lvl.BuildAccess.Min = LevelPermission.Nobody;
                 lvl.IsMuseum = true;
 
+                lvl.spawnx = spacing;
                 lvl.spawny = 2;
                 lvl.Config.HorizonBlock = 1;
                 lvl.Config.EdgeLevel = 1;
