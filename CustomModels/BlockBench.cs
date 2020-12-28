@@ -174,6 +174,15 @@ namespace MCGalaxy {
                             }
                         }
 
+                        if (
+                            (face.uv[0] % 1) != 0 ||
+                            (face.uv[1] % 1) != 0 ||
+                            (face.uv[2] % 1) != 0 ||
+                            (face.uv[3] % 1) != 0
+                        ) {
+                            return "uses a non-integer number in UV coordinates";
+                        }
+
                         return null;
                     }
                     for (int i = 0; i < this.elements.Length; i++) {
@@ -347,37 +356,37 @@ namespace MCGalaxy {
                     // faces in order [u1, v1, u2, v2]
                     /* uv coords in order: top, bottom, front, back, left, right */
                     // swap up's uv's
-                    UInt16[] u1 = new UInt16[] {
-                        e.faces.up.uv[2],
-                        e.faces.down.uv[0],
-                        e.faces.north.uv[0],
-                        e.faces.south.uv[0],
-                        e.faces.east.uv[0],
-                        e.faces.west.uv[0],
+                    UInt16[] u1 = new[] {
+                        (UInt16)e.faces.up.uv[2],
+                        (UInt16)e.faces.down.uv[0],
+                        (UInt16)e.faces.north.uv[0],
+                        (UInt16)e.faces.south.uv[0],
+                        (UInt16)e.faces.east.uv[0],
+                        (UInt16)e.faces.west.uv[0],
                     };
                     UInt16[] v1 = new[] {
-                        e.faces.up.uv[3],
-                        e.faces.down.uv[1],
-                        e.faces.north.uv[1],
-                        e.faces.south.uv[1],
-                        e.faces.east.uv[1],
-                        e.faces.west.uv[1],
+                        (UInt16)e.faces.up.uv[3],
+                        (UInt16)e.faces.down.uv[1],
+                        (UInt16)e.faces.north.uv[1],
+                        (UInt16)e.faces.south.uv[1],
+                        (UInt16)e.faces.east.uv[1],
+                        (UInt16)e.faces.west.uv[1],
                     };
                     UInt16[] u2 = new[] {
-                        e.faces.up.uv[0],
-                        e.faces.down.uv[2],
-                        e.faces.north.uv[2],
-                        e.faces.south.uv[2],
-                        e.faces.east.uv[2],
-                        e.faces.west.uv[2],
+                        (UInt16)e.faces.up.uv[0],
+                        (UInt16)e.faces.down.uv[2],
+                        (UInt16)e.faces.north.uv[2],
+                        (UInt16)e.faces.south.uv[2],
+                        (UInt16)e.faces.east.uv[2],
+                        (UInt16)e.faces.west.uv[2],
                     };
                     UInt16[] v2 = new[] {
-                        e.faces.up.uv[1],
-                        e.faces.down.uv[3],
-                        e.faces.north.uv[3],
-                        e.faces.south.uv[3],
-                        e.faces.east.uv[3],
-                        e.faces.west.uv[3],
+                        (UInt16)e.faces.up.uv[1],
+                        (UInt16)e.faces.down.uv[3],
+                        (UInt16)e.faces.north.uv[3],
+                        (UInt16)e.faces.south.uv[3],
+                        (UInt16)e.faces.east.uv[3],
+                        (UInt16)e.faces.west.uv[3],
                     };
 
                     var part = new Part {
@@ -780,9 +789,9 @@ namespace MCGalaxy {
                     }
 
                     // 4 numbers
-                    public UInt16[] uv;
+                    public float[] uv;
                     public string texture = null;
-                    public UInt16 rotation = 0;
+                    public float rotation = 0;
                 }
                 public class UuidOrGroup {
                     public string uuid;
