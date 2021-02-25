@@ -27,7 +27,7 @@ namespace MCGalaxy {
                 p.Message("%T/CustomModel list <all/player name>");
                 p.Message("%H  List all public/personal custom models.");
 
-                p.Message("%T/CustomModel visit <all/player name> <page>");
+                p.Message("%T/CustomModel goto <all/player name> <page>");
                 p.Message("%H  Go to a generated map with all public/personal custom models.");
 
                 p.Message("%T/CustomModel wear [model name]");
@@ -92,9 +92,9 @@ namespace MCGalaxy {
                             // /CustomModel list
                             List(p, null);
                             return;
-                        } else if (subCommand.CaselessEq("visit")) {
-                            // /CustomModel visit
-                            Visit(p, null);
+                        } else if (subCommand.CaselessEq("goto") || subCommand.CaselessEq("visit")) {
+                            // /CustomModel goto
+                            Goto(p, null);
                             return;
                         }
                     } else if (args.Count >= 1) {
@@ -103,10 +103,11 @@ namespace MCGalaxy {
                         var checkPerms = true;
                         if (
                             subCommand.CaselessEq("list") ||
+                            subCommand.CaselessEq("goto") ||
                             subCommand.CaselessEq("visit") ||
                             subCommand.CaselessEq("wear")
                         ) {
-                            // anyone can list, visit, wear
+                            // anyone can list, goto, wear
                             checkPerms = false;
                         }
 
@@ -117,10 +118,13 @@ namespace MCGalaxy {
                             // /CustomModel list [name]
                             List(p, modelName);
                             return;
-                        } else if (subCommand.CaselessEq("visit") && (args.Count == 0 || args.Count == 1)) {
-                            // /CustomModel visit [name] <page>
+                        } else if (
+                            (subCommand.CaselessEq("goto") || subCommand.CaselessEq("visit")) &&
+                            (args.Count == 0 || args.Count == 1)
+                        ) {
+                            // /CustomModel goto [name] <page>
                             if (args.Count == 0) {
-                                Visit(p, modelName);
+                                Goto(p, modelName);
                                 return;
                             } else if (args.Count == 1) {
                                 ushort page = 1;
@@ -128,7 +132,7 @@ namespace MCGalaxy {
                                 if (page > 0) {
                                     page = (ushort)((int)page - 1);
                                 }
-                                Visit(p, modelName, page);
+                                Goto(p, modelName, page);
                                 return;
                             }
                         } else if (subCommand.CaselessEq("wear") && args.Count == 0) {
@@ -637,7 +641,7 @@ namespace MCGalaxy {
                 }
             }
 
-            void Visit(Player p, string playerName = null, ushort page = 0) {
+            void Goto(Player p, string playerName = null, ushort page = 0) {
                 bool all = false;
                 if (playerName != null) {
                     playerName = playerName.ToLower();
@@ -690,7 +694,7 @@ namespace MCGalaxy {
                 );
                 if (partitions.Count > 1 && page < (partitions.Count - 1)) {
                     p.Message(
-                        "%SUse \"%H/cm visit {0} {1}%S\" to go to the next page",
+                        "%SUse \"%H/cm goto {0} {1}%S\" to go to the next page",
                         playerName,
                         page + 2
                     );
