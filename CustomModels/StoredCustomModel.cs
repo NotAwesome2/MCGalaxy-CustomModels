@@ -325,7 +325,11 @@ namespace MCGalaxy {
                                 ) {
                                     // rotate legs to point forward, pointed a little outwards
                                     part.rotation.X = 90.0f;
-                                    part.rotation.Y = anim.type == CustomModelAnimType.LeftLegX ? 5.0f : -5.0f;
+                                    if (this.modifiers.Contains("sitcute")) {
+                                        part.rotation.Y = anim.type == CustomModelAnimType.LeftLegX ? 1.0f : -1.0f;
+                                    } else {
+                                        part.rotation.Y = anim.type == CustomModelAnimType.LeftLegX ? 5.0f : -5.0f;
+                                    }
                                     part.rotation.Z = 0;
                                     anim.type = CustomModelAnimType.None;
                                 }
@@ -360,6 +364,7 @@ namespace MCGalaxy {
                     }
                     if (this.modifiers.Contains("sitcute")) {
                         foreach (var part in parts) {
+                            var appliedOffset = false;
                             foreach (var anim in part.anims) {
                                 var left = anim.type == CustomModelAnimType.LeftArmX || anim.type == CustomModelAnimType.LeftArmZ;
                                 var right = anim.type == CustomModelAnimType.RightArmX || anim.type == CustomModelAnimType.RightArmZ;
@@ -368,6 +373,11 @@ namespace MCGalaxy {
                                     part.rotation.X = 50.0f;
                                     part.rotation.Y = left ? -40.0f : 40.0f;
                                     part.rotation.Z = left ? -25.0f : 25.0f;
+                                    if (!appliedOffset) {
+                                        part.max.Z += -0.5f / 16.0f;
+                                        part.min.Z += -0.5f / 16.0f;
+                                        appliedOffset = true;
+                                    }
                                     anim.type = CustomModelAnimType.None;
                                 }
                             }
