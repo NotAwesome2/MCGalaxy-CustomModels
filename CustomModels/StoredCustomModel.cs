@@ -308,15 +308,17 @@ namespace MCGalaxy {
                         foreach (var part in parts) {
                             foreach (var anim in part.anims) {
                                 if (anim.type == CustomModelAnimType.LeftLegX) {
+                                    // find very top and bottom points of all leg parts
                                     if (!leftLegMaxY.HasValue || part.max.Y > leftLegMaxY) leftLegMaxY = part.max.Y;
                                     if (!leftLegMinY.HasValue || part.min.Y < leftLegMinY) leftLegMinY = part.min.Y;
-                                    if (!leftLegMaxZ.HasValue || part.max.Z > leftLegMaxZ) leftLegMaxZ = part.max.Z;
-                                    if (!leftLegMinZ.HasValue || part.min.Z < leftLegMinZ) leftLegMinZ = part.min.Z;
+                                    // only use 1 part for finding width of leg
+                                    leftLegMaxZ = part.max.Z;
+                                    leftLegMinZ = part.min.Z;
                                 } else if (anim.type == CustomModelAnimType.RightLegX) {
                                     if (!rightLegMaxY.HasValue || part.max.Y > rightLegMaxY) rightLegMaxY = part.max.Y;
                                     if (!rightLegMinY.HasValue || part.min.Y < rightLegMinY) rightLegMinY = part.min.Y;
-                                    if (!rightLegMaxZ.HasValue || part.max.Z > rightLegMaxZ) rightLegMaxZ = part.max.Z;
-                                    if (!rightLegMinZ.HasValue || part.min.Z < rightLegMinZ) rightLegMinZ = part.min.Z;
+                                    rightLegMaxZ = part.max.Z;
+                                    rightLegMinZ = part.min.Z;
                                 }
 
                                 if (
