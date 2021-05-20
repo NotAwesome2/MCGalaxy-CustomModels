@@ -88,6 +88,10 @@ namespace MCGalaxy {
                             // /CustomModel sit
                             Sit(p, data);
                             return;
+                        } else if (subCommand.CaselessEq("sitcute")) {
+                            // /CustomModel sitcute
+                            SitCute(p, data);
+                            return;
                         } else if (subCommand.CaselessEq("list")) {
                             // /CustomModel list
                             List(p, null);
@@ -197,10 +201,30 @@ namespace MCGalaxy {
                     return;
                 }
 
-                if (storedModel.modifiers.Contains("sit")) {
+                // sit always toggles off sitcute
+                if (storedModel.modifiers.Contains("sit") || storedModel.modifiers.Contains("sitcute")) {
+                    storedModel.RemoveModifier("sitcute");
                     storedModel.RemoveModifier("sit");
                 } else {
                     storedModel.AddModifier("sit");
+                }
+
+                p.HandleCommand("XModel", storedModel.GetFullNameWithScale(), data);
+            }
+
+            void SitCute(Player p, CommandData data) {
+                var storedModel = new StoredCustomModel(p.Model);
+                if (!storedModel.Exists()) {
+                    p.Message("%WYour current model isn't a Custom Model!");
+                    return;
+                }
+
+                // allow going from sit -> sitcute
+                storedModel.RemoveModifier("sit");
+                if (storedModel.modifiers.Contains("sitcute")) {
+                    storedModel.RemoveModifier("sitcute");
+                } else {
+                    storedModel.AddModifier("sitcute");
                 }
 
                 p.HandleCommand("XModel", storedModel.GetFullNameWithScale(), data);

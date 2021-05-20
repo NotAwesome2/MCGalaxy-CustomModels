@@ -294,16 +294,36 @@ namespace MCGalaxy {
                 if (this.fileName == null) {
                     // only apply modifiers if we aren't a file override
 
-                    if (this.modifiers.Contains("sit")) {
-                        Part leg = null;
+                    if (this.modifiers.Contains("sit") || this.modifiers.Contains("sitcute")) {
+                        float? leftLegMaxY = null;
+                        float? leftLegMinY = null;
+                        float? leftLegMaxZ = null;
+                        float? leftLegMinZ = null;
+
+                        float? rightLegMaxY = null;
+                        float? rightLegMinY = null;
+                        float? rightLegMaxZ = null;
+                        float? rightLegMinZ = null;
+
                         foreach (var part in parts) {
                             foreach (var anim in part.anims) {
+                                if (anim.type == CustomModelAnimType.LeftLegX) {
+                                    if (!leftLegMaxY.HasValue || part.max.Y > leftLegMaxY) leftLegMaxY = part.max.Y;
+                                    if (!leftLegMinY.HasValue || part.min.Y < leftLegMinY) leftLegMinY = part.min.Y;
+                                    if (!leftLegMaxZ.HasValue || part.max.Z > leftLegMaxZ) leftLegMaxZ = part.max.Z;
+                                    if (!leftLegMinZ.HasValue || part.min.Z < leftLegMinZ) leftLegMinZ = part.min.Z;
+                                } else if (anim.type == CustomModelAnimType.RightLegX) {
+                                    if (!rightLegMaxY.HasValue || part.max.Y > rightLegMaxY) rightLegMaxY = part.max.Y;
+                                    if (!rightLegMinY.HasValue || part.min.Y < rightLegMinY) rightLegMinY = part.min.Y;
+                                    if (!rightLegMaxZ.HasValue || part.max.Z > rightLegMaxZ) rightLegMaxZ = part.max.Z;
+                                    if (!rightLegMinZ.HasValue || part.min.Z < rightLegMinZ) rightLegMinZ = part.min.Z;
+                                }
+
                                 if (
                                     anim.type == CustomModelAnimType.LeftLegX ||
                                     anim.type == CustomModelAnimType.RightLegX
                                 ) {
                                     // rotate legs to point forward, pointed a little outwards
-                                    leg = part;
                                     part.rotation.X = 90.0f;
                                     part.rotation.Y = anim.type == CustomModelAnimType.LeftLegX ? 5.0f : -5.0f;
                                     part.rotation.Z = 0;
@@ -312,23 +332,45 @@ namespace MCGalaxy {
                             }
                         }
 
-                        if (leg != null) {
-                            var legHeight = leg.max.Y - leg.min.Y;
-                            var legForwardWidth = leg.max.Z - leg.min.Z;
-                            // lower all parts by leg's Y height, up by the leg's width
-                            var lower = legHeight - legForwardWidth / 2.0f;
+                        var leftLegHeight = leftLegMaxY - leftLegMinY;
+                        var leftLegForwardWidth = leftLegMaxZ - leftLegMinZ;
+
+                        var rightLegHeight = rightLegMaxY - rightLegMinY;
+                        var rightLegForwardWidth = rightLegMaxZ - rightLegMinZ;
+
+                        // lower all parts by leg's Y height, up by the leg's width
+                        var leftLower = leftLegHeight - leftLegForwardWidth / 2.0f;
+                        var rightLower = rightLegHeight - rightLegForwardWidth / 2.0f;
+
+                        var lower = leftLower.HasValue ? leftLower : rightLower;
+                        if (lower.HasValue) {
                             foreach (var part in parts) {
-                                part.min.Y -= lower;
-                                part.max.Y -= lower;
-                                part.rotationOrigin.Y -= lower;
+                                part.min.Y -= lower.Value;
+                                part.max.Y -= lower.Value;
+                                part.rotationOrigin.Y -= lower.Value;
 
                                 if (part.firstPersonArm) {
                                     // remove first person arm because offset changed
                                     part.firstPersonArm = false;
                                 }
                             }
-                            model.eyeY -= lower;
-                            model.nameY -= lower;
+                            model.eyeY -= lower.Value;
+                            model.nameY -= lower.Value;
+                        }
+                    }
+                    if (this.modifiers.Contains("sitcute")) {
+                        foreach (var part in parts) {
+                            foreach (var anim in part.anims) {
+                                var left = anim.type == CustomModelAnimType.LeftArmX || anim.type == CustomModelAnimType.LeftArmZ;
+                                var right = anim.type == CustomModelAnimType.RightArmX || anim.type == CustomModelAnimType.RightArmZ;
+                                if (left || right) {
+                                    // rotate legs to point forward, pointed a little outwards
+                                    part.rotation.X = 50.0f;
+                                    part.rotation.Y = left ? -40.0f : 40.0f;
+                                    part.rotation.Z = left ? -25.0f : 25.0f;
+                                    anim.type = CustomModelAnimType.None;
+                                }
+                            }
                         }
                     }
 
