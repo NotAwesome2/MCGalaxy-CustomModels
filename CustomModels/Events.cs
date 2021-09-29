@@ -14,7 +14,8 @@ namespace MCGalaxy {
 
         static void CheckSendModel(Player p, string modelName) {
             lock (SentCustomModels) {
-                var sentModels = SentCustomModels[p.name];
+                var isPlus = Server.Config.ClassicubeAccountPlus ? p.name : p.truename;
+                var sentModels = SentCustomModels[isPlus];
 
                 if (!sentModels.Contains(modelName)) {
                     var storedModel = new StoredCustomModel(modelName);
@@ -29,7 +30,8 @@ namespace MCGalaxy {
 
         static void CheckRemoveModel(Player p, string modelName) {
             lock (SentCustomModels) {
-                var sentModels = SentCustomModels[p.name];
+                var isPlus = Server.Config.ClassicubeAccountPlus ? p.name : p.truename;
+                var sentModels = SentCustomModels[isPlus];
                 if (sentModels.Contains(modelName)) {
                     var storedModel = new StoredCustomModel(modelName);
                     if (storedModel.Exists()) {
@@ -43,7 +45,8 @@ namespace MCGalaxy {
         // sends all missing models in level to player,
         // and removes all unused models from player
         static void CheckAddRemove(Player p, Level level) {
-            Debug("CheckAddRemove {0}", p.name);
+            var isPlus = Server.Config.ClassicubeAccountPlus ? p.name : p.truename;
+            Debug("CheckAddRemove {0}", isPlus);
 
             var visibleModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
                 ModelInfo.GetRawModel(p.Model)
@@ -75,7 +78,7 @@ namespace MCGalaxy {
             // TODO maybe check if we're about to overflow, and flip order?
 
             lock (SentCustomModels) {
-                var sentModels = SentCustomModels[p.name];
+                var sentModels = SentCustomModels[isPlus];
                 // clone so we can modify while we iterate
                 foreach (var modelName in sentModels.ToArray()) {
                     // remove models not found in this level
@@ -97,10 +100,11 @@ namespace MCGalaxy {
             // remove this model from everyone's sent list
             foreach (Player p in PlayerInfo.Online.Items) {
                 lock (SentCustomModels) {
-                    var sentModels = SentCustomModels[p.name];
+                    var isPlus = Server.Config.ClassicubeAccountPlus ? p.name : p.truename;
+                    var sentModels = SentCustomModels[isPlus];
                     foreach (var modelName in sentModels.ToArray()) {
                         if (storedCustomModel.GetModelFileName().CaselessEq(new StoredCustomModel(modelName).GetModelFileName())) {
-                            Debug("CheckUpdateAll remove {0} from {1}", modelName, p.name);
+                            Debug("CheckUpdateAll remove {0} from {1}", modelName, isPlus);
                             CheckRemoveModel(p, modelName);
                         }
                     }
@@ -146,17 +150,19 @@ namespace MCGalaxy {
         }
 
         static void OnPlayerConnect(Player p) {
-            Debug("OnPlayerConnect {0}", p.name);
+            var isPlus = Server.Config.ClassicubeAccountPlus ? p.name : p.truename;
+            Debug("OnPlayerConnect {0}", isPlus);
 
-            SentCustomModels.TryAdd(p.name, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
-            ModelNameToIdForPlayer.TryAdd(p.name, new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase));
+            SentCustomModels.TryAdd(isPlus, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+            ModelNameToIdForPlayer.TryAdd(isPlus, new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase));
         }
 
         static void OnPlayerDisconnect(Player p, string reason) {
-            Debug("OnPlayerDisconnect {0}", p.name);
+            var isPlus = Server.Config.ClassicubeAccountPlus ? p.name : p.truename;
+            Debug("OnPlayerDisconnect {0}", isPlus);
 
-            SentCustomModels.TryRemove(p.name, out _);
-            ModelNameToIdForPlayer.TryRemove(p.name, out _);
+            SentCustomModels.TryRemove(isPlus, out _);
+            ModelNameToIdForPlayer.TryRemove(isPlus, out _);
 
             Level prevLevel = p.level;
             if (prevLevel != null) {
@@ -172,16 +178,18 @@ namespace MCGalaxy {
         static void OnJoiningLevel(Player p, Level level, ref bool canJoin) {
             if (!canJoin) return;
 
-            Debug("OnJoiningLevel {0} {1}", p.name, level.name);
+            var isPlus = Server.Config.ClassicubeAccountPlus ? p.name : p.truename;
+            Debug("OnJoiningLevel {0} {1}", isPlus, level.name);
 
             // send future/new model list to player
             CheckAddRemove(p, level);
         }
 
         static void OnJoinedLevel(Player p, Level prevLevel, Level level, ref bool announce) {
+            var isPlus = Server.Config.ClassicubeAccountPlus ? p.name : p.truename;
             Debug(
                 "OnJoinedLevel {0} {1} -> {2}",
-                p.name,
+                isPlus,
                 prevLevel != null ? prevLevel.name : "null",
                 level.name
             );
@@ -348,7 +356,8 @@ namespace MCGalaxy {
                             !storedModel.usesHumanSkin &&
                             storedModel.defaultSkin != null
                         ) {
-                            Debug("Setting {0} to defaultSkin {1}", p.name, storedModel.defaultSkin);
+                            var isPlus = Server.Config.ClassicubeAccountPlus ? p.name : p.truename;
+                            Debug("Setting {0} to defaultSkin {1}", isPlus, storedModel.defaultSkin);
                             Command.Find("Skin").Use(
                                 p,
                                 "-own " + storedModel.defaultSkin,

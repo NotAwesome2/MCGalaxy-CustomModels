@@ -514,7 +514,8 @@ namespace MCGalaxy {
 
         static byte? GetModelId(Player p, string name, bool addNew = false) {
             lock (ModelNameToIdForPlayer) {
-                var modelNameToId = ModelNameToIdForPlayer[p.name];
+                var isPlus = Server.Config.ClassicubeAccountPlus ? p.name : p.truename;
+                var modelNameToId = ModelNameToIdForPlayer[isPlus];
                 if (modelNameToId.TryGetValue(name, out byte value)) {
                     return value;
                 } else {
@@ -540,7 +541,8 @@ namespace MCGalaxy {
             if (hasV1 || hasV2) {
 
                 var modelId = GetModelId(p, model.name, true).Value;
-                Debug("DefineModel {0} {1} {2}", modelId, p.name, model.name);
+                var isPlus = Server.Config.ClassicubeAccountPlus ? p.name : p.truename;
+                Debug("DefineModel {0} {1} {2}", modelId, isPlus, model.name);
 
                 model.partCount = (byte)parts.Length;
                 byte[] modelPacket = Packet.DefineModel(modelId, model);
@@ -562,12 +564,13 @@ namespace MCGalaxy {
                 bool hasV2 = p.Supports(CpeExt.CustomModels, 2);
                 if (hasV1 || hasV2) {
                     var modelId = GetModelId(p, name).Value;
-                    Debug("UndefineModel {0} {1} {2}", modelId, p.name, name);
+                    var isPlus = Server.Config.ClassicubeAccountPlus ? p.name : p.truename;
+                    Debug("UndefineModel {0} {1} {2}", modelId, isPlus, name);
 
                     byte[] modelPacket = Packet.UndefineModel(modelId);
                     p.Send(modelPacket);
 
-                    var modelNameToId = ModelNameToIdForPlayer[p.name];
+                    var modelNameToId = ModelNameToIdForPlayer[isPlus];
                     modelNameToId.TryRemove(name, out _);
                 }
             }

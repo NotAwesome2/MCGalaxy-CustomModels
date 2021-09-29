@@ -147,8 +147,9 @@ namespace MCGalaxy {
 
             // initialize because of a late plugin load
             foreach (Player p in PlayerInfo.Online.Items) {
-                SentCustomModels.TryAdd(p.name, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
-                ModelNameToIdForPlayer.TryAdd(p.name, new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase));
+                var isPlus = Server.Config.ClassicubeAccountPlus ? p.name : p.truename;
+                SentCustomModels.TryAdd(isPlus, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+                ModelNameToIdForPlayer.TryAdd(isPlus, new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase));
             }
         }
 
