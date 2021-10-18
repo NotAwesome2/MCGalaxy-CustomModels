@@ -98,29 +98,13 @@ namespace MCGalaxy {
                 var contentType = "text/plain; charset=utf-8";
                 byte[] bodyBytes = new byte[] { };
 
-                if (method == "GET" && path.StartsWith("/?")) {
-                    string query = path.Substring(2);
-                    Debug("{0}", query);
+                if (method == "GET" && path.StartsWith("/")) {
+                    string model = path.Substring(1);
+                    Debug("{0}", model);
 
                     try {
-                        byte[] mergedImageBytes = null;
-                        using (Bitmap bmp = FetchBitmap(GetSkinUrl(query))) {
-                            using (Image overlay = Image.FromFile("overlay.png")) {
-                                if (overlay.Size.Width > bmp.Size.Width || overlay.Size.Height > bmp.Size.Height) {
-                                    throw new Exception("overlay image is bigger than skin image");
-                                }
-
-                                using (Graphics graphics = Graphics.FromImage(bmp)) {
-                                    graphics.DrawImage(overlay, new Rectangle(new Point(), overlay.Size),
-                                        new Rectangle(new Point(), overlay.Size), GraphicsUnit.Pixel);
-                                }
-
-                                using (MemoryStream memoryStream = new MemoryStream()) {
-                                    bmp.Save(memoryStream, ImageFormat.Png);
-                                    mergedImageBytes = memoryStream.ToArray();
-                                }
-                            }
-                        }
+                        // TODO sanitize
+                        var mergedImageBytes = GetPNG(model);
 
                         status = "200 OK";
                         contentType = "image/png";
@@ -156,6 +140,42 @@ namespace MCGalaxy {
                 networkStream.Write(bodyBytes, 0, bodyBytes.Length);
             }
 
+            public byte[] GetPNG(string model) {
+                var storedModel = new StoredCustomModel(model);
+                if (!storedModel.Exists()) throw new Exception("no model " + model);
+                var blockBench = storedModel.ParseBlockBench();
+
+                var base64Url = blockBench.textures[0].source;
+                var marker = "data:image/png;base64,";
+                var base64Index = base64Url.IndexOf(marker);
+                if (base64Index == -1) throw new Exception("couldn't find base64 marker in url");
+                var base64 = base64Url.Substring(base64Index + marker.Length);
+
+                using (var imageDataStream = new MemoryStream(Convert.FromBase64String(base64))) {
+                    using (Image image = Image.FromStream(imageDataStream)) {
+                        // using (Image overlay = Image.FromFile("overlay.png")) {
+                        // if (overlay.Size.Width > image.Size.Width || overlay.Size.Height > image.Size.Height) {
+                        //     throw new Exception("overlay image is bigger than skin image");
+                        // }
+
+                        // using (Graphics graphics = Graphics.FromImage(image)) {
+                        //     graphics.DrawImage(
+                        //         overlay,
+                        //         new Rectangle(new Point(), overlay.Size),
+                        //         new Rectangle(new Point(), overlay.Size),
+                        //         GraphicsUnit.Pixel
+                        //     );
+                        // }
+
+                        using (MemoryStream memoryStream = new MemoryStream()) {
+                            image.Save(memoryStream, ImageFormat.Png);
+                            return memoryStream.ToArray();
+                        }
+                        // }
+                    }
+                }
+            }
+
             public string GetURL(string skin, string model) {
                 if (publicIp == null) {
                     Debug("!!! publicIp == null");
@@ -166,11 +186,22 @@ namespace MCGalaxy {
                     return null;
                 }
 
+                var storedModel = new StoredCustomModel(model);
+                if (!storedModel.Exists()) {
+                    Debug("!!! !storedModel.Exists()");
+                    return null;
+                }
+                var blockBench = storedModel.ParseBlockBench();
+                if (blockBench.textures.Length == 0) {
+                    Debug("!!! blockBench.textures.Length == 0");
+                    return null;
+                }
+
                 var ip = publicIp;
                 var port = ((IPEndPoint)tcpListener.LocalEndpoint).Port;
-                var path = "/path";
+                var path = string.Format("{0}", model);
                 return string.Format(
-                    "http://{0}:{1}{2}",
+                    "http://{0}:{1}/{2}",
                     ip,
                     port,
                     path

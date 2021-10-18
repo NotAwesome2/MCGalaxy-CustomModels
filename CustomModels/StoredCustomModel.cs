@@ -139,7 +139,7 @@ namespace MCGalaxy {
                 this.calcHumanAnims = model.calcHumanAnims;
             }
 
-            BlockBench.JsonRoot ParseBlockBench() {
+            public BlockBench.JsonRoot ParseBlockBench() {
                 string path = GetBBPath();
                 string contentsBB = File.ReadAllText(path);
                 var jsonRoot = BlockBench.Parse(contentsBB);

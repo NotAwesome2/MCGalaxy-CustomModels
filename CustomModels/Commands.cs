@@ -572,6 +572,9 @@ namespace MCGalaxy {
                         "%TCustom Model %S{0} %Tupdated!",
                         modelName
                     );
+
+                    // TODO
+                    Entities.GlobalRespawn(p);
                 }
             }
 

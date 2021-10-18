@@ -136,9 +136,10 @@ namespace MCGalaxy {
             public class JsonRoot {
                 public Meta meta;
                 public string name;
+                public Resolution resolution;
                 public Element[] elements;
                 public UuidOrGroup[] outliner;
-                public Resolution resolution;
+                public Texture[] textures;
 
                 public bool IsValid(Player p) {
                     // warn player if unsupported features were used
@@ -153,7 +154,7 @@ namespace MCGalaxy {
                         warnings = true;
                     }
 
-                    string lastTexture = null;
+                    uint? lastTextureId = null;
                     string bad(Face face) {
                         // check for uv rotation
                         if (face.rotation != 0) {
@@ -161,17 +162,17 @@ namespace MCGalaxy {
                         }
 
                         // check for no assigned texture
-                        if (face.texture == null) {
-                            return "doesn't have a texture";
-                        } else {
+                        if (face.texture.HasValue) {
                             // check if using more than 1 texture
-                            if (lastTexture != null) {
-                                if (lastTexture != face.texture) {
+                            if (lastTextureId.HasValue) {
+                                if (lastTextureId.Value != face.texture.Value) {
                                     return "uses multiple textures";
                                 }
                             } else {
-                                lastTexture = face.texture;
+                                lastTextureId = face.texture;
                             }
+                        } else {
+                            return "doesn't have an assigned texture";
                         }
 
                         if (
@@ -790,7 +791,7 @@ namespace MCGalaxy {
 
                     // 4 numbers
                     public float[] uv;
-                    public string texture = null;
+                    public uint? texture = null;
                     public float rotation = 0;
                 }
                 public class UuidOrGroup {
@@ -846,8 +847,22 @@ namespace MCGalaxy {
                         throw new NotImplementedException();
                     }
                 }
+                public class Texture {
+                    // "YDXY9xp.png"
+                    // public string path;
+                    // "YDXY9xp.png"
+                    // public string name;
+                    // "0"
+                    public string id;
+                    // "normal"
+                    // public string render_mode;
+                    // "bitmap"
+                    // public string mode;
 
-            }
+                    // base64 url of image data
+                    public string source;
+                }
+            } // JsonRoot
 
             private static readonly JsonSerializerSettings jsonSettings = new JsonSerializerSettings {
                 Converters = new[] { new JsonRoot.JsonUuidOrGroup() }

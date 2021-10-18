@@ -153,7 +153,7 @@ namespace MCGalaxy {
             }
 
             httpSkinServer = new HttpSkinServer();
-            httpSkinServer.Start();
+            httpSkinServer.Start("127.0.0.1");
         }
 
         public override void Unload(bool shutdown) {
