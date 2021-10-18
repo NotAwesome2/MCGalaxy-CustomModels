@@ -39,7 +39,7 @@ namespace MCGalaxy {
             rhs = temp;
         }
 
-        private static readonly bool debug = false;
+        private static readonly bool debug = true;
         private static void Debug(string format, object arg0, object arg1, object arg2) {
             if (!debug) return;
             Logger.Log(LogType.Debug, format, arg0, arg1, arg2);
@@ -64,6 +64,12 @@ namespace MCGalaxy {
         public static T PopFront<T>(this List<T> list) {
             T r = list[0];
             list.RemoveAt(0);
+            return r;
+        }
+
+        public static T PopBack<T>(this List<T> list) {
+            T r = list[list.Count - 1];
+            list.RemoveAt(list.Count - 1);
             return r;
         }
 

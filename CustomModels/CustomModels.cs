@@ -120,7 +120,8 @@ namespace MCGalaxy {
         //------------------------------------------------------------------ plugin interface
 
 
-        CmdCustomModel command = null;
+        static CmdCustomModel command = null;
+        static HttpSkinServer httpSkinServer = null;
         public override void Load(bool startup) {
             command = new CmdCustomModel();
             Command.Register(command);
@@ -131,7 +132,7 @@ namespace MCGalaxy {
             OnJoinedLevelEvent.Register(OnJoinedLevel, Priority.Low);
             OnSendingModelEvent.Register(OnSendingModel, Priority.Low);
             OnPlayerCommandEvent.Register(OnPlayerCommand, Priority.Low);
-            // OnEntitySpawnedEvent.Register(OnEntitySpawned, Priority.Low);
+            OnEntitySpawnedEvent.Register(OnEntitySpawned, Priority.Low);
 
             Directory.CreateDirectory(PublicModelsDirectory);
             Directory.CreateDirectory(PersonalModelsDirectory);
@@ -150,9 +151,18 @@ namespace MCGalaxy {
                 SentCustomModels.TryAdd(p.name, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
                 ModelNameToIdForPlayer.TryAdd(p.name, new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase));
             }
+
+            httpSkinServer = new HttpSkinServer();
+            httpSkinServer.Start();
         }
 
         public override void Unload(bool shutdown) {
+            Debug("Unload");
+            if (httpSkinServer != null) {
+                httpSkinServer.Stop();
+                httpSkinServer = null;
+            }
+
             SentCustomModels.Clear();
             ModelNameToIdForPlayer.Clear();
 
@@ -162,7 +172,7 @@ namespace MCGalaxy {
             OnJoinedLevelEvent.Unregister(OnJoinedLevel);
             OnSendingModelEvent.Unregister(OnSendingModel);
             OnPlayerCommandEvent.Unregister(OnPlayerCommand);
-            // OnEntitySpawnedEvent.Unregister(OnEntitySpawned);
+            OnEntitySpawnedEvent.Unregister(OnEntitySpawned);
 
             if (command != null) {
                 Command.Unregister(command);
