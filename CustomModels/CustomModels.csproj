@@ -54,6 +54,7 @@
     <Compile Include="Events.cs" />
     <Compile Include="Helpers.cs" />
     <Compile Include="HttpSkinServer.cs" />
+    <Compile Include="ModelModifiers.cs" />
     <Compile Include="Memoizer.cs" />
     <Compile Include="Skins.cs" />
     <Compile Include="StoredCustomModel.cs" />
