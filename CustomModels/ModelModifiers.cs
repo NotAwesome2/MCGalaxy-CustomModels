@@ -236,32 +236,20 @@ namespace MCGalaxy {
             }
 
             public void Apply() {
-                if (HttpSkinServer.ShouldUseCustomURL(storedCustomModel, blockBench)) {
+                if (HttpSkinServer.ShouldUseCustomURL(blockBench)) {
                     ApplyMerged();
                 }
             }
 
             void ApplyMerged() {
-                var textureImages = new List<TextureImage>();
-                var totalWidth = 0;
-                var totalHeight = 0;
-                foreach (var texture in blockBench.textures) {
-                    var textureImage = TextureImage.FromTexture(texture);
-                    textureImages.Add(textureImage);
-
-                    totalWidth += textureImage.image.Width;
-                    if (textureImage.image.Height > totalHeight) {
-                        totalHeight = textureImage.image.Height;
-                    }
-                }
+                var textureSheet = TextureSheet.FromTextures(blockBench.textures);
 
                 var x = 0;
-                foreach (var textureImage in textureImages) {
+                foreach (var textureImage in textureSheet.textureImages) {
                     var image = textureImage.image;
-                    var id = uint.Parse(textureImage.texture.id);
 
                     void UpdateFace(BlockBench.JsonRoot.Face face) {
-                        if (face.texture == id) {
+                        if (face.texture == textureImage.id) {
                             var u1 = face.uv[0] * (image.Width / (float)blockBench.resolution.width);
                             var v1 = face.uv[1] * (image.Height / (float)blockBench.resolution.height);
                             var u2 = face.uv[2] * (image.Width / (float)blockBench.resolution.width);
@@ -289,13 +277,10 @@ namespace MCGalaxy {
                     x += image.Width;
                 }
 
-                blockBench.resolution.width = (UInt16)totalWidth;
-                blockBench.resolution.height = (UInt16)totalHeight;
+                blockBench.resolution.width = (UInt16)textureSheet.width;
+                blockBench.resolution.height = (UInt16)textureSheet.height;
 
-
-                while (textureImages.Count > 0) {
-                    textureImages.PopBack().Dispose();
-                }
+                textureSheet.Dispose();
             }
 
         }

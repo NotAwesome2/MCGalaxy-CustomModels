@@ -41,12 +41,14 @@ namespace MCGalaxy {
                 && IsAllColor(black, bmp, 50 * scale, 16 * scale, 2 * scale, 4 * scale) ? SkinType.Alex : SkinType.SteveLayers;
         }
 
-        static Bitmap FetchBitmap(Uri uri) {
+        static byte[] FetchData(Uri uri) {
+            byte[] data = null;
             // TODO set timeout!
+            Debug("DownloadData {0}", uri);
             using (WebClient client = HttpUtil.CreateWebClient()) {
-                var data = client.DownloadData(uri);
-                return new Bitmap(new MemoryStream(data));
+                data = client.DownloadData(uri);
             }
+            return data;
         }
 
         static Uri GetSkinUrl(string skinName) {
@@ -64,8 +66,10 @@ namespace MCGalaxy {
         static SkinType GetSkinType(string skinName) {
             var uri = GetSkinUrl(skinName);
 
-            using (Bitmap bmp = FetchBitmap(uri)) {
-                return GetSkinType(bmp);
+            using (var memoryStream = new MemoryStream(FetchData(uri))) {
+                using (var bitmap = new Bitmap(memoryStream)) {
+                    return GetSkinType(bitmap);
+                }
             }
         }
 

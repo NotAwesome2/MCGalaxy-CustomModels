@@ -207,26 +207,20 @@ namespace MCGalaxy {
                 var model = ModelInfo.GetRawModel(e.Model);
                 var storedModel = new StoredCustomModel(model);
                 if (!storedModel.Exists()) throw new Exception("no model " + model);
+                storedModel.LoadFromFile();
                 var blockBench = storedModel.ParseBlockBench();
 
-                var textureImages = new List<TextureImage>();
-                var totalWidth = 0;
-                var totalHeight = 0;
-                foreach (var texture in blockBench.textures) {
-                    var textureImage = TextureImage.FromTexture(texture);
-                    textureImages.Add(textureImage);
-
-                    totalWidth += textureImage.image.Width;
-                    if (textureImage.image.Height > totalHeight) {
-                        totalHeight = textureImage.image.Height;
-                    }
-                }
+                var textureSheet = TextureSheet.FromTextures(
+                    blockBench.textures,
+                    storedModel.usesHumanSkin,
+                    e.SkinName
+                );
 
                 byte[] mergedImageBytes = null;
-                using (var mergedImage = new Bitmap(totalWidth, totalHeight)) {
+                using (var mergedImage = new Bitmap(textureSheet.width, textureSheet.height)) {
                     using (Graphics graphics = Graphics.FromImage(mergedImage)) {
                         var x = 0;
-                        foreach (var textureImage in textureImages) {
+                        foreach (var textureImage in textureSheet.textureImages) {
                             var image = textureImage.image;
 
                             graphics.DrawImage(
@@ -247,9 +241,7 @@ namespace MCGalaxy {
                     }
                 }
 
-                while (textureImages.Count > 0) {
-                    textureImages.PopBack().Dispose();
-                }
+                textureSheet.Dispose();
 
                 return mergedImageBytes;
             }
@@ -295,7 +287,6 @@ namespace MCGalaxy {
                     Debug("!!! !storedModel.Exists()");
                     return false;
                 }
-                storedModel.LoadFromFile();
 
                 // TODO heavy, maybe cache per model name?
                 var blockBench = storedModel.ParseBlockBench();
@@ -304,41 +295,45 @@ namespace MCGalaxy {
                     return false;
                 }
 
-                return ShouldUseCustomURL(storedModel, blockBench);
+                return ShouldUseCustomURL(blockBench);
             }
 
-            public static bool ShouldUseCustomURL(StoredCustomModel storedModel, BlockBench.JsonRoot blockBench) {
-                return blockBench.textures.Length >= 2 && storedModel.usesHumanSkin;
+            public static bool ShouldUseCustomURL(BlockBench.JsonRoot blockBench) {
+                return blockBench.textures.Length >= 2;
             }
 
 
         } // HttpSkinServer
 
         public class TextureImage {
-            public readonly BlockBench.JsonRoot.Texture texture;
+            public readonly uint id;
 
             // dun forget to Dispose these boys!
             public readonly MemoryStream memoryStream;
             public readonly Image image;
 
-            public TextureImage(BlockBench.JsonRoot.Texture texture) {
-                this.texture = texture;
-                var bytes = BytesFromBase64Url(texture.source);
+            public TextureImage(uint id, byte[] bytes) {
+                this.id = id;
                 this.memoryStream = new MemoryStream(bytes);
                 this.image = Image.FromStream(memoryStream);
             }
 
-            public static TextureImage FromTexture(BlockBench.JsonRoot.Texture texture) {
-                return new TextureImage(texture);
-            }
-
-            public static byte[] BytesFromBase64Url(string base64Url) {
+            public static TextureImage FromBase64Url(uint id, string base64Url) {
                 var marker = "data:image/png;base64,";
                 var base64Index = base64Url.IndexOf(marker);
                 if (base64Index == -1) throw new Exception("couldn't find base64 marker in url");
                 var base64 = base64Url.Substring(base64Index + marker.Length);
                 var bytes = Convert.FromBase64String(base64);
-                return bytes;
+                return new TextureImage(id, bytes);
+            }
+
+            public static TextureImage FromTexture(BlockBench.JsonRoot.Texture texture) {
+                var id = uint.Parse(texture.id);
+                return TextureImage.FromBase64Url(id, texture.source);
+            }
+
+            public static TextureImage FromData(string id, byte[] bytes) {
+                return new TextureImage(uint.Parse(id), bytes);
             }
 
 
@@ -347,6 +342,80 @@ namespace MCGalaxy {
                 memoryStream.Dispose();
             }
 
+        }
+
+        public class TextureSheet {
+            public TextureImage[] textureImages;
+            public int width;
+            public int height;
+
+            TextureSheet(TextureImage[] textureImages) {
+                this.textureImages = textureImages;
+                this.width = 0;
+                this.height = 0;
+                foreach (var textureImage in textureImages) {
+                    this.width += textureImage.image.Width;
+                    if (textureImage.image.Height > this.height) {
+                        this.height = textureImage.image.Height;
+                    }
+                }
+            }
+
+            public static TextureSheet FromTextures(BlockBench.JsonRoot.Texture[] textures, bool usesHumanSkin = false, string skin = null) {
+                var textureImages = new List<TextureImage>();
+
+                var first = true;
+                foreach (var texture in textures) {
+                    var replaceHumanSkin = skin != null && (
+                        usesHumanSkin || (
+                            skin.StartsWith("http://") || skin.StartsWith("https://")
+                        )
+                    );
+                    TextureImage textureImage = TextureImage.FromTexture(texture);
+                    if (first && replaceHumanSkin) {
+                        byte[] bytes = null;
+                        try {
+                            bytes = FetchData(GetSkinUrl(skin));
+                        } catch { }
+                        if (bytes != null) {
+
+
+
+                            var textureImageOverride = TextureImage.FromData(texture.id, bytes);
+                            using (var newImage = new Bitmap(textureImage.image.Width, textureImage.image.Height)) {
+                                using (Graphics graphics = Graphics.FromImage(newImage)) {
+                                    graphics.DrawImage(
+                                        textureImageOverride.image,
+                                        0,
+                                        0,
+                                        textureImage.image.Width,
+                                        textureImage.image.Height
+                                    );
+                                }
+                                textureImageOverride.Dispose();
+
+                                using (MemoryStream memoryStream = new MemoryStream()) {
+                                    newImage.Save(memoryStream, ImageFormat.Png);
+                                    var newImageBytes = memoryStream.ToArray();
+                                    textureImage.Dispose();
+                                    textureImage = TextureImage.FromData(texture.id, newImageBytes);
+                                }
+                            }
+                        }
+                    }
+                    first = false;
+                    textureImages.Add(textureImage);
+                }
+
+                return new TextureSheet(textureImages.ToArray());
+            }
+
+            public void Dispose() {
+                for (int i = textureImages.Length - 1; i >= 0; i--) {
+                    var textureImage = textureImages[i];
+                    textureImage.Dispose();
+                }
+            }
         }
     }
 }
