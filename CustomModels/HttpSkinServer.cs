@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
@@ -13,7 +15,13 @@ namespace MCGalaxy {
         public class HttpSkinServer {
             private TcpListener tcpListener = null;
             private CancellationTokenSource httpListenerWorkerToken = null;
-            private string publicIp = null;
+            private string publicIp;
+            private readonly int port;
+
+            public HttpSkinServer(string publicIp = null, int port = 0) {
+                this.publicIp = publicIp;
+                this.port = port;
+            }
 
             private void FetchPublicIP() {
                 using (WebClient client = HttpUtil.CreateWebClient()) {
@@ -32,11 +40,15 @@ namespace MCGalaxy {
                 }
             }
 
-            public void Start(string publicIp = null, int port = 0) {
+            public static HttpSkinServer Start(string publicIp = null, int port = 0) {
+                var httpSkinServer = new HttpSkinServer(publicIp, port);
+                httpSkinServer.Start();
+                return httpSkinServer;
+            }
+
+            public void Start() {
                 if (publicIp == null) {
                     FetchPublicIP();
-                } else {
-                    this.publicIp = publicIp;
                 }
 
                 tcpListener = new TcpListener(IPAddress.Any, port);
@@ -56,6 +68,10 @@ namespace MCGalaxy {
                             using (TcpClient client = tcpListener.AcceptTcpClient()) {
                                 cancelToken.ThrowIfCancellationRequested();
 
+                                // can't access this after Close
+                                var endpoint = client.Client.RemoteEndPoint;
+                                Stopwatch sw = new Stopwatch();
+                                sw.Start();
                                 try {
                                     // TODO new thread?
                                     using (NetworkStream stream = client.GetStream()) {
@@ -66,14 +82,31 @@ namespace MCGalaxy {
                                     client.Close();
                                 } catch (Exception e) {
                                     client.Close();
-                                    Debug("{0}", e.Message);
-                                    Debug("{0}", e.StackTrace);
+                                    if (!(e is IOException)) {
+                                        Debug("{0}", e.Message);
+                                        Debug("{0}", e.StackTrace);
+                                    } else {
+                                        Debug("" + e.Message);
+                                    }
                                 }
+                                sw.Stop();
+                                Debug("{0}: {1}ms", endpoint, sw.Elapsed.TotalMilliseconds);
                             }
                         } // while
                     },
                     cancelToken
                 ).Start();
+            }
+
+            public void Stop() {
+                if (tcpListener != null) {
+                    tcpListener.Stop();
+                    tcpListener = null;
+                }
+                if (httpListenerWorkerToken != null) {
+                    httpListenerWorkerToken.Cancel();
+                    httpListenerWorkerToken = null;
+                }
             }
 
             private void HandleStream(NetworkStream networkStream, TcpClient client) {
@@ -92,19 +125,30 @@ namespace MCGalaxy {
                 var path = request.Substring(0, pathIndex);
                 path = WebUtility.UrlDecode(path);
 
-                Debug(client.Client.RemoteEndPoint + " - {0} {1}", method, path);
+                Debug("{0} - {1} {2}", client.Client.RemoteEndPoint, method, path);
 
                 string status;
                 var contentType = "text/plain; charset=utf-8";
                 byte[] bodyBytes = new byte[] { };
 
                 if (method == "GET" && path.StartsWith("/")) {
-                    string model = path.Substring(1);
-                    Debug("{0}", model);
-
                     try {
-                        // TODO sanitize
-                        var mergedImageBytes = GetPNG(model);
+                        string withoutSlash = path.Substring(1);
+                        var entityNameIndex = withoutSlash.IndexOf('/');
+                        if (entityNameIndex <= 0) throw new Exception("invalid entityNameIndex");
+                        var playerName = withoutSlash.Substring(0, entityNameIndex);
+                        var entityName = withoutSlash.Substring(entityNameIndex + 1);
+
+                        Debug("'{0}' '{1}'", playerName, entityName);
+
+                        var p = FindPlayer(playerName);
+                        if (p == null) throw new Exception("couldn't find player");
+
+                        var e = FindEntity(p, entityName);
+                        if (e == null) throw new Exception("couldn't find entity");
+
+                        Debug("'{0}' '{1}'", p.truename, e.Model);
+                        var mergedImageBytes = GenerateSkinForEntity(e);
 
                         status = "200 OK";
                         contentType = "image/png";
@@ -140,43 +184,87 @@ namespace MCGalaxy {
                 networkStream.Write(bodyBytes, 0, bodyBytes.Length);
             }
 
-            public byte[] GetPNG(string model) {
+            private Player FindPlayer(string truename) {
+                foreach (Player p in PlayerInfo.Online.Items) {
+                    if (p.truename == truename) return p;
+                }
+                return null;
+            }
+
+            private Entity FindEntity(Player p, string name) {
+                var ag = FindPlayer(name);
+                if (ag != null) {
+                    return ag;
+                }
+
+                foreach (var bot in p.level.Bots.Items) {
+                    if (bot.name == name) return bot;
+                }
+                return null;
+            }
+
+            public byte[] GenerateSkinForEntity(Entity e) {
+                var model = ModelInfo.GetRawModel(e.Model);
                 var storedModel = new StoredCustomModel(model);
                 if (!storedModel.Exists()) throw new Exception("no model " + model);
                 var blockBench = storedModel.ParseBlockBench();
 
-                var base64Url = blockBench.textures[0].source;
-                var marker = "data:image/png;base64,";
-                var base64Index = base64Url.IndexOf(marker);
-                if (base64Index == -1) throw new Exception("couldn't find base64 marker in url");
-                var base64 = base64Url.Substring(base64Index + marker.Length);
+                var textureImages = new List<TextureImage>();
+                var totalWidth = 0;
+                var totalHeight = 0;
+                foreach (var texture in blockBench.textures) {
+                    var textureImage = TextureImage.FromTexture(texture);
+                    textureImages.Add(textureImage);
 
-                using (var imageDataStream = new MemoryStream(Convert.FromBase64String(base64))) {
-                    using (Image image = Image.FromStream(imageDataStream)) {
-                        // using (Image overlay = Image.FromFile("overlay.png")) {
-                        // if (overlay.Size.Width > image.Size.Width || overlay.Size.Height > image.Size.Height) {
-                        //     throw new Exception("overlay image is bigger than skin image");
-                        // }
-
-                        // using (Graphics graphics = Graphics.FromImage(image)) {
-                        //     graphics.DrawImage(
-                        //         overlay,
-                        //         new Rectangle(new Point(), overlay.Size),
-                        //         new Rectangle(new Point(), overlay.Size),
-                        //         GraphicsUnit.Pixel
-                        //     );
-                        // }
-
-                        using (MemoryStream memoryStream = new MemoryStream()) {
-                            image.Save(memoryStream, ImageFormat.Png);
-                            return memoryStream.ToArray();
-                        }
-                        // }
+                    totalWidth += textureImage.image.Width;
+                    if (textureImage.image.Height > totalHeight) {
+                        totalHeight = textureImage.image.Height;
                     }
                 }
+
+                byte[] mergedImageBytes = null;
+                using (var mergedImage = new Bitmap(totalWidth, totalHeight)) {
+                    using (Graphics graphics = Graphics.FromImage(mergedImage)) {
+                        var x = 0;
+                        foreach (var textureImage in textureImages) {
+                            var image = textureImage.image;
+
+                            graphics.DrawImage(
+                                image,
+                                x,
+                                0,
+                                image.Width,
+                                image.Height
+                            );
+
+                            x += image.Width;
+                        }
+                    }
+
+                    using (MemoryStream memoryStream = new MemoryStream()) {
+                        mergedImage.Save(memoryStream, ImageFormat.Png);
+                        mergedImageBytes = memoryStream.ToArray();
+                    }
+                }
+
+                while (textureImages.Count > 0) {
+                    textureImages.PopBack().Dispose();
+                }
+
+                return mergedImageBytes;
             }
 
-            public string GetURL(string skin, string model) {
+            public string GetURL(Entity e, string name, string skin, string model, Player dst) {
+                string entityName;
+                if (e is Player player) {
+                    entityName = player.truename;
+                } else if (e is PlayerBot bot) {
+                    entityName = bot.name;
+                } else {
+                    Debug("!!! not a Player or PlayerBot???");
+                    return null;
+                }
+
                 if (publicIp == null) {
                     Debug("!!! publicIp == null");
                     return null;
@@ -186,38 +274,79 @@ namespace MCGalaxy {
                     return null;
                 }
 
-                var storedModel = new StoredCustomModel(model);
-                if (!storedModel.Exists()) {
-                    Debug("!!! !storedModel.Exists()");
-                    return null;
-                }
-                var blockBench = storedModel.ParseBlockBench();
-                if (blockBench.textures.Length == 0) {
-                    Debug("!!! blockBench.textures.Length == 0");
+                if (!ShouldUseCustomURL(model)) {
                     return null;
                 }
 
-                var ip = publicIp;
-                var port = ((IPEndPoint)tcpListener.LocalEndpoint).Port;
-                var path = string.Format("{0}", model);
+                // TODO a more generic way for sharing same images
                 return string.Format(
-                    "http://{0}:{1}/{2}",
-                    ip,
-                    port,
-                    path
+                    "http://{0}:{1}/{2}/{3}",
+                    publicIp,
+                    ((IPEndPoint)tcpListener.LocalEndpoint).Port,
+                    dst.truename,
+                    entityName
                 );
             }
 
-            public void Stop() {
-                if (tcpListener != null) {
-                    tcpListener.Stop();
-                    tcpListener = null;
+
+            public static bool ShouldUseCustomURL(string model) {
+                var storedModel = new StoredCustomModel(model);
+                if (!storedModel.Exists()) {
+                    Debug("!!! !storedModel.Exists()");
+                    return false;
                 }
-                if (httpListenerWorkerToken != null) {
-                    httpListenerWorkerToken.Cancel();
-                    httpListenerWorkerToken = null;
+                storedModel.LoadFromFile();
+
+                // TODO heavy, maybe cache per model name?
+                var blockBench = storedModel.ParseBlockBench();
+                if (blockBench.textures.Length == 0) {
+                    Debug("!!! blockBench.textures.Length == 0");
+                    return false;
                 }
+
+                return ShouldUseCustomURL(storedModel, blockBench);
             }
+
+            public static bool ShouldUseCustomURL(StoredCustomModel storedModel, BlockBench.JsonRoot blockBench) {
+                return blockBench.textures.Length >= 2 && storedModel.usesHumanSkin;
+            }
+
+
+        } // HttpSkinServer
+
+        public class TextureImage {
+            public readonly BlockBench.JsonRoot.Texture texture;
+
+            // dun forget to Dispose these boys!
+            public readonly MemoryStream memoryStream;
+            public readonly Image image;
+
+            public TextureImage(BlockBench.JsonRoot.Texture texture) {
+                this.texture = texture;
+                var bytes = BytesFromBase64Url(texture.source);
+                this.memoryStream = new MemoryStream(bytes);
+                this.image = Image.FromStream(memoryStream);
+            }
+
+            public static TextureImage FromTexture(BlockBench.JsonRoot.Texture texture) {
+                return new TextureImage(texture);
+            }
+
+            public static byte[] BytesFromBase64Url(string base64Url) {
+                var marker = "data:image/png;base64,";
+                var base64Index = base64Url.IndexOf(marker);
+                if (base64Index == -1) throw new Exception("couldn't find base64 marker in url");
+                var base64 = base64Url.Substring(base64Index + marker.Length);
+                var bytes = Convert.FromBase64String(base64);
+                return bytes;
+            }
+
+
+            public void Dispose() {
+                image.Dispose();
+                memoryStream.Dispose();
+            }
+
         }
     }
 }

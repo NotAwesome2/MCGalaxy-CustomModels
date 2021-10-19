@@ -12,7 +12,7 @@ namespace MCGalaxy {
         // don't store "name" because we will use filename for model name
         // don't store "parts" because we store those in the full .bbmodel file
         // don't store "u/vScale" because we take it from bbmodel's resolution.width
-        class StoredCustomModel {
+        public class StoredCustomModel {
             [JsonIgnore] public string modelName = null;
             [JsonIgnore] public HashSet<string> modifiers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             [JsonIgnore] public float scale = 1.0f;
@@ -280,6 +280,11 @@ namespace MCGalaxy {
             }
             public ModelAndParts ComputeModelAndParts() {
                 var blockBench = ParseBlockBench();
+                if (this.fileName == null) {
+                    // only apply modifiers if we aren't a file override
+                    BlockBenchModifiers.Apply(modifiers, this, blockBench);
+                }
+
                 var model = this.ToCustomModel(blockBench);
                 var parts = new List<Part>(blockBench.ToParts());
 
@@ -295,7 +300,7 @@ namespace MCGalaxy {
 
                 if (this.fileName == null) {
                     // only apply modifiers if we aren't a file override
-                    ModelModifiers.Apply(this.modifiers, model, parts);
+                    ModelModifiers.Apply(modifiers, model, parts, blockBench);
                 }
 
                 var modelAndParts = new ModelAndParts {
@@ -313,12 +318,13 @@ namespace MCGalaxy {
         } // class StoredCustomModel
 
 
-        class Part : CustomModelPart {
+        public class Part : CustomModelPart {
             public bool layer = false;
             public bool skinLeftArm = false;
             public bool skinRightArm = false;
             public bool skinLeftLeg = false;
             public bool skinRightLeg = false;
+            public uint?[] uvTextures = null;
 
             public CustomModelPart ToCustomModelPart() {
                 var fixedAnims = this.anims.Take(Packet.MaxCustomModelAnims).ToList();

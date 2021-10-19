@@ -41,7 +41,7 @@ namespace MCGalaxy {
 
         // ignore "Field is never assigned to"
 #pragma warning disable 0649
-        private class BlockBench {
+        public class BlockBench {
 
             public static bool IsValid(string json, Player p, string modelName) {
                 var jsonRoot = Parse(json);
@@ -390,9 +390,19 @@ namespace MCGalaxy {
                         (UInt16)e.faces.west.uv[3],
                     };
 
+                    uint?[] uvTextures = new[] {
+                        e.faces.up.texture,
+                        e.faces.down.texture,
+                        e.faces.north.texture,
+                        e.faces.south.texture,
+                        e.faces.east.texture,
+                        e.faces.west.texture,
+                    };
+
                     var part = new Part {
                         min = min,
                         max = max,
+                        uvTextures = uvTextures,
                         u1 = u2,
                         v1 = v1,
                         u2 = u1,

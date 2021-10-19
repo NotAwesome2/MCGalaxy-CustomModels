@@ -425,6 +425,7 @@ namespace MCGalaxy {
                     "usesHumanSkin",
                     new ModelField(
                         "bool",
+                        // TODO better description about /cm wear and "/skin"
                         "Fall back to using entity name for skin",
                         (model) => model.usesHumanSkin.ToString(),
                         (model, p, input) => CommandParser.GetBool(p, input, ref model.usesHumanSkin)
@@ -443,7 +444,7 @@ namespace MCGalaxy {
                     "defaultSkin",
                     new ModelField(
                         "skin",
-                        "Set default skin",
+                        "Set default skin. For use with /cm wear",
                         (model) => model.defaultSkin == null ? "unset" : model.defaultSkin.ToString(),
                         (model, p, input) => {
                             if (input.Length == 0 || input == "unset") {
@@ -574,6 +575,7 @@ namespace MCGalaxy {
                     );
 
                     // TODO
+                    // update for if skin override
                     Entities.GlobalRespawn(p);
                 }
             }

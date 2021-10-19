@@ -1,20 +1,23 @@
+using System;
 using System.Collections.Generic;
 
 namespace MCGalaxy {
     public sealed partial class CustomModelsPlugin {
-        class ModelModifiers {
+        public class ModelModifiers {
             private readonly HashSet<string> modifiers;
             private readonly CustomModel model;
             private readonly List<Part> parts;
+            private readonly BlockBench.JsonRoot blockBench;
 
-            ModelModifiers(HashSet<string> modifiers, CustomModel model, List<Part> parts) {
+            ModelModifiers(HashSet<string> modifiers, CustomModel model, List<Part> parts, BlockBench.JsonRoot blockBench) {
                 this.modifiers = modifiers;
                 this.model = model;
                 this.parts = parts;
+                this.blockBench = blockBench;
             }
 
-            public static void Apply(HashSet<string> modifiers, CustomModel model, List<Part> parts) {
-                new ModelModifiers(modifiers, model, parts).Apply();
+            public static void Apply(HashSet<string> modifiers, CustomModel model, List<Part> parts, BlockBench.JsonRoot blockBench) {
+                new ModelModifiers(modifiers, model, parts, blockBench).Apply();
             }
 
             public void Apply() {
@@ -213,6 +216,88 @@ namespace MCGalaxy {
                     f(leftLeg, rightLeg);
                 }
             }
+
+
+        }
+
+        class BlockBenchModifiers {
+            private readonly HashSet<string> modifiers;
+            private readonly StoredCustomModel storedCustomModel;
+            private readonly BlockBench.JsonRoot blockBench;
+
+            BlockBenchModifiers(HashSet<string> modifiers, StoredCustomModel storedCustomModel, BlockBench.JsonRoot blockBench) {
+                this.modifiers = modifiers;
+                this.storedCustomModel = storedCustomModel;
+                this.blockBench = blockBench;
+            }
+
+            public static void Apply(HashSet<string> modifiers, StoredCustomModel storedCustomModel, BlockBench.JsonRoot blockBench) {
+                new BlockBenchModifiers(modifiers, storedCustomModel, blockBench).Apply();
+            }
+
+            public void Apply() {
+                if (HttpSkinServer.ShouldUseCustomURL(storedCustomModel, blockBench)) {
+                    ApplyMerged();
+                }
+            }
+
+            void ApplyMerged() {
+                var textureImages = new List<TextureImage>();
+                var totalWidth = 0;
+                var totalHeight = 0;
+                foreach (var texture in blockBench.textures) {
+                    var textureImage = TextureImage.FromTexture(texture);
+                    textureImages.Add(textureImage);
+
+                    totalWidth += textureImage.image.Width;
+                    if (textureImage.image.Height > totalHeight) {
+                        totalHeight = textureImage.image.Height;
+                    }
+                }
+
+                var x = 0;
+                foreach (var textureImage in textureImages) {
+                    var image = textureImage.image;
+                    var id = uint.Parse(textureImage.texture.id);
+
+                    void UpdateFace(BlockBench.JsonRoot.Face face) {
+                        if (face.texture == id) {
+                            var u1 = face.uv[0] * (image.Width / (float)blockBench.resolution.width);
+                            var v1 = face.uv[1] * (image.Height / (float)blockBench.resolution.height);
+                            var u2 = face.uv[2] * (image.Width / (float)blockBench.resolution.width);
+                            var v2 = face.uv[3] * (image.Height / (float)blockBench.resolution.height);
+
+                            u1 += x;
+                            u2 += x;
+
+                            face.uv[0] = u1;
+                            face.uv[1] = v1;
+                            face.uv[2] = u2;
+                            face.uv[3] = v2;
+                        }
+                    }
+
+                    foreach (var element in blockBench.elements) {
+                        UpdateFace(element.faces.up);
+                        UpdateFace(element.faces.down);
+                        UpdateFace(element.faces.north);
+                        UpdateFace(element.faces.south);
+                        UpdateFace(element.faces.east);
+                        UpdateFace(element.faces.west);
+                    }
+
+                    x += image.Width;
+                }
+
+                blockBench.resolution.width = (UInt16)totalWidth;
+                blockBench.resolution.height = (UInt16)totalHeight;
+
+
+                while (textureImages.Count > 0) {
+                    textureImages.PopBack().Dispose();
+                }
+            }
+
         }
     }
 }

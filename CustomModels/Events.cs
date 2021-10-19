@@ -366,7 +366,7 @@ namespace MCGalaxy {
 
 
         static void OnEntitySpawned(Entity e, ref string name, ref string skin, ref string model, Player dst) {
-            var newSkin = httpSkinServer.GetURL(skin, model);
+            var newSkin = httpSkinServer.GetURL(e, name, skin, model, dst);
             if (newSkin != null) {
                 Debug("OVERRIDE SKIN {0} -> {1}", skin, newSkin);
                 skin = newSkin;

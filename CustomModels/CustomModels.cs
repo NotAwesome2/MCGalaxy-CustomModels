@@ -152,8 +152,7 @@ namespace MCGalaxy {
                 ModelNameToIdForPlayer.TryAdd(p.name, new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase));
             }
 
-            httpSkinServer = new HttpSkinServer();
-            httpSkinServer.Start("127.0.0.1");
+            httpSkinServer = HttpSkinServer.Start("127.0.0.1", 8080);
         }
 
         public override void Unload(bool shutdown) {
