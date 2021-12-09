@@ -753,7 +753,7 @@ namespace MCGalaxy {
                 }
 
                 lvl.SetPhysics(0);
-                lvl.backedup = true;
+                lvl.ChangedSinceBackup = false;
                 lvl.BuildAccess.Min = LevelPermission.Nobody;
                 lvl.IsMuseum = true;
 
