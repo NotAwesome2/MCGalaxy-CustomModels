@@ -8,7 +8,7 @@ using MCGalaxy.Events.PlayerEvents;
 namespace MCGalaxy {
     public sealed partial class CustomModelsPlugin : Plugin {
         public override string name => "CustomModels";
-        public override string MCGalaxy_Version => "1.9.2.2";
+        public override string MCGalaxy_Version => "1.9.3.6";
         public override string creator => "SpiralP & Goodly";
 
         //------------------------------------------------------------------bbmodel/ccmodel file loading

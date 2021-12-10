@@ -752,10 +752,12 @@ namespace MCGalaxy {
                     blocks[i] = 1;
                 }
 
-                lvl.SetPhysics(0);
-                lvl.backedup = true;
-                lvl.BuildAccess.Min = LevelPermission.Nobody;
+                lvl.SaveChanges = false;
+                lvl.ChangedSinceBackup = false;
+
                 lvl.IsMuseum = true;
+                lvl.BuildAccess.Min = LevelPermission.Nobody;
+                lvl.Config.Physics = 0;
 
                 lvl.spawnx = spacing;
                 lvl.spawny = 2;
