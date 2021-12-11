@@ -24,10 +24,10 @@ namespace MCGalaxy {
                 p.Message("%T/CustomModel sit");
                 p.Message("%H  Toggle sitting on your worn custom model.");
 
-                p.Message("%T/CustomModel list <all/player name>");
+                p.Message("%T/CustomModel list <all/public/player name> <query>");
                 p.Message("%H  List all public/personal custom models.");
 
-                p.Message("%T/CustomModel goto <all/player name> <page>");
+                p.Message("%T/CustomModel goto <all/public/player name> <page>");
                 p.Message("%H  Go to a generated map with all public/personal custom models.");
 
                 p.Message("%T/CustomModel wear [model name]");
@@ -118,10 +118,20 @@ namespace MCGalaxy {
                         var modelName = TargetModelName(p, data, arg, checkPerms);
                         if (modelName == null) return;
 
-                        if (subCommand.CaselessEq("list") && args.Count == 0) {
-                            // /CustomModel list [name]
-                            List(p, modelName);
-                            return;
+                        if (
+                            subCommand.CaselessEq("list") &&
+                            (args.Count == 0 || args.Count == 1)
+                        ) {
+                            if (args.Count == 0) {
+                                // /CustomModel list [name]
+                                List(p, modelName);
+                                return;
+                            } else if (args.Count == 1) {
+                                // /CustomModel list [name] [query]
+                                string query = args.PopFront();
+                                List(p, modelName, query);
+                                return;
+                            }
                         } else if (
                             (subCommand.CaselessEq("goto") || subCommand.CaselessEq("visit")) &&
                             (args.Count == 0 || args.Count == 1)
@@ -628,7 +638,7 @@ namespace MCGalaxy {
                 return dict;
             }
 
-            void List(Player p, string playerName = null) {
+            void List(Player p, string playerName = null, string query = null) {
                 bool all = false;
                 if (playerName != null) {
                     playerName = playerName.ToLower();
@@ -641,27 +651,57 @@ namespace MCGalaxy {
                     }
                 }
 
+                if (query != null) {
+                    query = query.ToLower();
+                }
+
                 if (all) {
                     var dict = GetAllModels(p);
                     if (dict == null) return;
 
-                    p.Message("%SAll Custom Models");
-                    foreach (var pair in dict.OrderByDescending(pair => pair.Value.Count)) {
-                        p.Message("  %T{0,3}%S: %T{1}", pair.Value.Count, pair.Key);
+                    if (query == null) {
+                        p.Message("%TAll %SCustom Models");
+                        foreach (var pair in dict.OrderByDescending(pair => pair.Value.Count)) {
+                            p.Message("  %T{0,3}%S: %T{1}", pair.Value.Count, pair.Key);
+                        }
+                    } else {
+                        var modelNames = new List<string>();
+                        foreach (var pair in dict) {
+                            modelNames.AddRange(
+                                pair.Value.Where(
+                                    (name) => name.Contains(query)
+                                )
+                            );
+                        }
+
+                        p.Message(
+                            "%SSearching %TAll %SCustom Models: %T{0}",
+                            modelNames.Join("%S, %T")
+                        );
                     }
                 } else {
                     var modelNames = GetModels(playerName, p);
                     if (modelNames == null) return;
 
-                    p.Message(
-                        "{0} Custom Models: %T{1}",
-                        playerName == null ?
-                            "%SPublic" :
-                            "%T" + (
-                                all ? "All" : GetNameWithoutPlus(playerName) + "%S's"
-                            ),
-                        modelNames.Join("%S, %T")
-                    );
+                    if (query == null) {
+                        p.Message(
+                            "%T{0} %SCustom Models: %T{1}",
+                            playerName == null ?
+                                "Public" :
+                                GetNameWithoutPlus(playerName) + "%S's",
+                            modelNames.Join("%S, %T")
+                        );
+                    } else {
+                        p.Message(
+                            "%SSearching %T{0} %SCustom Models: %T{1}",
+                            playerName == null ?
+                                "Public" :
+                                GetNameWithoutPlus(playerName) + "%S's",
+                            modelNames.Where(
+                                    (name) => name.Contains(query)
+                                ).Join("%S, %T")
+                        );
+                    }
                 }
             }
 
