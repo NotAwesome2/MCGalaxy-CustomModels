@@ -125,7 +125,7 @@ namespace MCGalaxy {
             command = new CmdCustomModel();
             Command.Register(command);
 
-            OnPlayerConnectEvent.Register(OnPlayerConnect, Priority.Low);
+            OnPlayerFinishConnectingEvent.Register(OnPlayerFinishConnecting, Priority.Low);
             OnPlayerDisconnectEvent.Register(OnPlayerDisconnect, Priority.Low);
             OnJoiningLevelEvent.Register(OnJoiningLevel, Priority.Low);
             OnJoinedLevelEvent.Register(OnJoinedLevel, Priority.Low);
@@ -147,8 +147,8 @@ namespace MCGalaxy {
 
             // initialize because of a late plugin load
             foreach (Player p in PlayerInfo.Online.Items) {
-                SentCustomModels.TryAdd(p.name, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
-                ModelNameToIdForPlayer.TryAdd(p.name, new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase));
+                SentCustomModels.TryAdd(p, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+                ModelNameToIdForPlayer.TryAdd(p, new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase));
             }
         }
 
@@ -156,7 +156,7 @@ namespace MCGalaxy {
             SentCustomModels.Clear();
             ModelNameToIdForPlayer.Clear();
 
-            OnPlayerConnectEvent.Unregister(OnPlayerConnect);
+            OnPlayerFinishConnectingEvent.Unregister(OnPlayerFinishConnecting);
             OnPlayerDisconnectEvent.Unregister(OnPlayerDisconnect);
             OnJoiningLevelEvent.Unregister(OnJoiningLevel);
             OnJoinedLevelEvent.Unregister(OnJoinedLevel);
