@@ -509,12 +509,12 @@ namespace MCGalaxy {
         }
 
 
-        static readonly ConcurrentDictionary<string, ConcurrentDictionary<string, byte>> ModelNameToIdForPlayer =
-            new ConcurrentDictionary<string, ConcurrentDictionary<string, byte>>(StringComparer.OrdinalIgnoreCase);
+        static readonly ConcurrentDictionary<Player, ConcurrentDictionary<string, byte>> ModelNameToIdForPlayer =
+            new ConcurrentDictionary<Player, ConcurrentDictionary<string, byte>>();
 
         static byte? GetModelId(Player p, string name, bool addNew = false) {
             lock (ModelNameToIdForPlayer) {
-                var modelNameToId = ModelNameToIdForPlayer[p.name];
+                var modelNameToId = ModelNameToIdForPlayer[p];
                 if (modelNameToId.TryGetValue(name, out byte value)) {
                     return value;
                 } else {
@@ -567,7 +567,7 @@ namespace MCGalaxy {
                     byte[] modelPacket = Packet.UndefineModel(modelId);
                     p.Send(modelPacket);
 
-                    var modelNameToId = ModelNameToIdForPlayer[p.name];
+                    var modelNameToId = ModelNameToIdForPlayer[p];
                     modelNameToId.TryRemove(name, out _);
                 }
             }

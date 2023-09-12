@@ -9,12 +9,12 @@ namespace MCGalaxy {
     public sealed partial class CustomModelsPlugin {
 
         // [player name] = { model name }
-        static readonly ConcurrentDictionary<string, HashSet<string>> SentCustomModels =
-            new ConcurrentDictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        static readonly ConcurrentDictionary<Player, HashSet<string>> SentCustomModels =
+            new ConcurrentDictionary<Player, HashSet<string>>();
 
         static void CheckSendModel(Player p, string modelName) {
             lock (SentCustomModels) {
-                var sentModels = SentCustomModels[p.name];
+                var sentModels = SentCustomModels[p];
 
                 if (!sentModels.Contains(modelName)) {
                     var storedModel = new StoredCustomModel(modelName);
@@ -29,7 +29,7 @@ namespace MCGalaxy {
 
         static void CheckRemoveModel(Player p, string modelName) {
             lock (SentCustomModels) {
-                var sentModels = SentCustomModels[p.name];
+                var sentModels = SentCustomModels[p];
                 if (sentModels.Contains(modelName)) {
                     var storedModel = new StoredCustomModel(modelName);
                     if (storedModel.Exists()) {
@@ -75,7 +75,7 @@ namespace MCGalaxy {
             // TODO maybe check if we're about to overflow, and flip order?
 
             lock (SentCustomModels) {
-                var sentModels = SentCustomModels[p.name];
+                var sentModels = SentCustomModels[p];
                 // clone so we can modify while we iterate
                 foreach (var modelName in sentModels.ToArray()) {
                     // remove models not found in this level
@@ -97,7 +97,7 @@ namespace MCGalaxy {
             // remove this model from everyone's sent list
             foreach (Player p in PlayerInfo.Online.Items) {
                 lock (SentCustomModels) {
-                    var sentModels = SentCustomModels[p.name];
+                    var sentModels = SentCustomModels[p];
                     foreach (var modelName in sentModels.ToArray()) {
                         if (storedCustomModel.GetModelFileName().CaselessEq(new StoredCustomModel(modelName).GetModelFileName())) {
                             Debug("CheckUpdateAll remove {0} from {1}", modelName, p.name);
@@ -145,18 +145,20 @@ namespace MCGalaxy {
             }
         }
 
-        static void OnPlayerConnect(Player p) {
+        static void OnPlayerFinishConnecting(Player p) {
+            if (p.cancelconnecting) return;
+
             Debug("OnPlayerConnect {0}", p.name);
 
-            SentCustomModels.TryAdd(p.name, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
-            ModelNameToIdForPlayer.TryAdd(p.name, new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase));
+            SentCustomModels.TryAdd(p, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+            ModelNameToIdForPlayer.TryAdd(p, new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase));
         }
 
         static void OnPlayerDisconnect(Player p, string reason) {
             Debug("OnPlayerDisconnect {0}", p.name);
 
-            SentCustomModels.TryRemove(p.name, out _);
-            ModelNameToIdForPlayer.TryRemove(p.name, out _);
+            SentCustomModels.TryRemove(p, out _);
+            ModelNameToIdForPlayer.TryRemove(p, out _);
 
             Level prevLevel = p.level;
             if (prevLevel != null) {
