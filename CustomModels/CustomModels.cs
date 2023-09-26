@@ -120,10 +120,9 @@ namespace MCGalaxy {
         //------------------------------------------------------------------ plugin interface
 
         internal static PlayerList bypassMaxSize;
-        CmdCustomModel command = null;
+        Command[] commands = new Command[] { new CmdCustomModel(), new CmdBypassModelSizeLimit() };
         public override void Load(bool startup) {
-            command = new CmdCustomModel();
-            Command.Register(command);
+            foreach (Command cmd in commands) { Command.Register(cmd); }
 
             OnPlayerFinishConnectingEvent.Register(OnPlayerFinishConnecting, Priority.Low);
             OnPlayerDisconnectEvent.Register(OnPlayerDisconnect, Priority.Low);
@@ -166,10 +165,7 @@ namespace MCGalaxy {
             OnPlayerCommandEvent.Unregister(OnPlayerCommand);
             // OnEntitySpawnedEvent.Unregister(OnEntitySpawned);
 
-            if (command != null) {
-                Command.Unregister(command);
-                command = null;
-            }
+            foreach (Command cmd in commands) { Command.Unregister(cmd); }
         }
 
     } // class CustomModelsPlugin
