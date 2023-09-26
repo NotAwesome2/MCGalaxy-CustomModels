@@ -728,6 +728,7 @@ namespace MCGalaxy {
                         .ThenBy(pair => pair.Key)
                         .Select(pair => pair.Value)
                         .SelectMany(x => x)
+                        .OrderBy(name => name)
                         .ToList();
                 } else {
                     modelNames = GetModels(playerName, p);
