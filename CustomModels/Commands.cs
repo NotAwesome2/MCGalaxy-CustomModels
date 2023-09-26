@@ -870,9 +870,9 @@ namespace MCGalaxy {
 
 
 	    public sealed class CmdBypassModelSizeLimit : CmdManageList {
-		    public override string name { get { return "Cheater"; } }
+		    public override string name { get { return "BypassModelSizeLimit"; } }
 		    public override string shortcut { get { return ""; } }
-		    public override string type { get { return "fun"; } }
+		    public override string type { get { return CommandTypes.Other; } }
 		    public override LevelPermission defaultRank { get { return LevelPermission.Operator; } }
             protected override string ListName { get { return "bypass model size limit"; } }
             protected override PlayerList list { get { return CustomModelsPlugin.bypassMaxSize; } }
