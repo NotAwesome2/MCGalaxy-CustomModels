@@ -119,7 +119,7 @@ namespace MCGalaxy {
 
         //------------------------------------------------------------------ plugin interface
 
-
+        internal static PlayerList bypassMaxSize;
         CmdCustomModel command = null;
         public override void Load(bool startup) {
             command = new CmdCustomModel();
@@ -150,6 +150,8 @@ namespace MCGalaxy {
                 SentCustomModels.TryAdd(p, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
                 ModelNameToIdForPlayer.TryAdd(p, new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase));
             }
+
+            bypassMaxSize = PlayerList.Load(PublicModelsDirectory + "bypass_max_size.txt");
         }
 
         public override void Unload(bool shutdown) {

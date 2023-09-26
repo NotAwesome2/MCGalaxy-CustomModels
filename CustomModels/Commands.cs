@@ -868,5 +868,90 @@ namespace MCGalaxy {
             }
         }
 
+
+	    public sealed class CmdBypassModelSizeLimit : CmdManageList {
+		    public override string name { get { return "Cheater"; } }
+		    public override string shortcut { get { return ""; } }
+		    public override string type { get { return "fun"; } }
+		    public override LevelPermission defaultRank { get { return LevelPermission.Operator; } }
+            protected override string ListName { get { return "bypass model size limit"; } }
+            protected override PlayerList list { get { return CustomModelsPlugin.bypassMaxSize; } }
+
+            public static bool CanBypassSizeLimit(Player p) {
+                if (CommandExtraPerms.Find("CustomModel", 1).UsableBy(p.Rank)) { return true; }
+                return bypassMaxSize.Contains(p.name);
+            }
+	    }
+
+
+        /// <summary>
+        /// What a nice reusable template... too bad it's tucked away into this plugin lmao
+        /// </summary>
+        public abstract class CmdManageList : Command2 {
+            public override bool museumUsable { get { return true; } }
+            protected virtual string AddArg { get { return "add"; } }
+            protected virtual string RemoveArg { get { return "remove"; } }
+            protected abstract string ListName { get; }
+            protected abstract PlayerList list { get; }
+
+            public override void Use(Player p, string message, CommandData data) {
+                if (message.Length == 0) { Help(p); return; }
+                if (message.CaselessEq("list")) { UseList(p); return; }
+                string[] args = message.SplitSpaces(2);
+                if (args.Length == 1) { p.Message("You need to provide a player name."); return; }
+                string func = args[0];
+                string arg = args[1];
+                if (func.CaselessEq("check")) { UseCheck(p, arg); return; }
+                if (func.CaselessEq(AddArg)) { UseAdd(p, arg); return; }
+                if (func.CaselessEq(RemoveArg)) { UseRemove(p, arg); return; }
+                p.Message("Unknown argument \"{0}\"", func);
+            }
+            void UseCheck(Player p, string message) {
+                string whoName = PlayerInfo.FindMatchesPreferOnline(p, message);
+                if (whoName == null) { return; }
+
+                if (list.Contains(whoName)) {
+                    p.Message("{0}&S is in the {0} list.", p.FormatNick(whoName), ListName);
+                } else {
+                    p.Message("{0}&S is not in the {1) list.", p.FormatNick(whoName), ListName);
+                }
+            }
+            void UseAdd(Player p, string message) {
+                string whoName = PlayerInfo.FindMatchesPreferOnline(p, message);
+                if (whoName == null) { return; }
+
+                if (list.Add(whoName)) {
+                    list.Save();
+                    p.Message("Successfully added {0}&S to the {1} list.", p.FormatNick(whoName), ListName);
+                } else {
+                    p.Message("{0}&S is already in the {1} list.", p.FormatNick(whoName), ListName);
+                    p.Message("Use &b/{0} {1}&S to remove.", name, RemoveArg);
+
+                }
+            }
+            void UseRemove(Player p, string message) {
+                string whoName = PlayerInfo.FindMatchesPreferOnline(p, message);
+                if (whoName == null) { return; }
+
+                if (list.Remove(whoName)) {
+                    list.Save();
+                    p.Message("Successfully removed {0}&S from the {1} list.", p.FormatNick(whoName), ListName);
+                } else {
+                    p.Message("{0}&S was not in the {1} list to begin with.", p.FormatNick(whoName), ListName);
+                }
+            }
+            void UseList(Player p) {
+                //public void Output(Player p, string group, string listCmd, string modifier)
+                list.Output(p, "Players in the "+ListName+" list", name+" check -all", "all");
+                return;
+            }
+
+            public override void Help(Player p) {
+                p.Message("&T/{0} {1} [name] &H- adds to the {2} list.", name, AddArg, ListName);
+                p.Message("&T/{0} {1} [name]", name, RemoveArg);
+                p.Message("&T/{0} check [name] &H- find out if [name] is in the {1} list.", name, ListName);
+                p.Message("&T/{0} list &H- display players in the {1} list.", name, ListName);
+            }
+        }
     } // class CustomModelsPlugin
 } // namespace MCGalaxy

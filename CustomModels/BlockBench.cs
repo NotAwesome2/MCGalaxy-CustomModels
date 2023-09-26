@@ -61,7 +61,7 @@ namespace MCGalaxy {
                 }
 
                 // only do size check if they can't upload global models
-                if (!CommandExtraPerms.Find("CustomModel", 1).UsableBy(p.Rank)) {
+                if (!CmdBypassModelSizeLimit.CanBypassSizeLimit(p)) {
                     for (int i = 0; i < parts.Length; i++) {
                         // Models can be 1 block bigger if they aren't a purely personal model
                         bool purePersonal = new StoredCustomModel(modelName).IsPersonalPrimary();
