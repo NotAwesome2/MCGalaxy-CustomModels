@@ -7,7 +7,7 @@ jobs:
     runs-on: windows-2019
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -24,6 +24,11 @@ jobs:
 
       - name: Test
         run: dotnet test --no-restore --verbosity normal
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CustomModels
+          path: CustomModels/bin
 
       - name: Upload Release
         if: startsWith(github.ref, 'refs/tags/')
