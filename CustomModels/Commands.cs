@@ -834,7 +834,6 @@ namespace MCGalaxy {
                     // hack because clients strip + at the end
                     var botName = "&f" + (modelName.EndsWith("+") ? modelName + "&0+" : modelName);
                     var bot = new PlayerBot(botName, lvl) {
-                        id = (byte)i,
                         Model = modelName,
                         SkinName = skinName,
                     };
