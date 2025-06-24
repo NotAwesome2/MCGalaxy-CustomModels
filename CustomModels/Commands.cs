@@ -616,6 +616,7 @@ namespace MCGalaxy {
                     }
                 }
 
+                modelNames = modelNames.OrderBy(name => name).ToList();
                 return modelNames;
             }
 
