@@ -413,13 +413,14 @@ namespace MCGalaxy {
                         if (colonSplit.Length >= 2) {
                             var modifiers = colonSplit[1].Replace(" ", "").Split('|');
                             if (modifiers.Length > 0) {
-                                a = float.Parse(modifiers[0]);
+                                //Invariant because we must force . as a decimal separator rather than ,
+                                a = float.Parse(modifiers[0], System.Globalization.NumberFormatInfo.InvariantInfo);
                                 if (modifiers.Length > 1) {
-                                    b = float.Parse(modifiers[1]);
+                                    b = float.Parse(modifiers[1], System.Globalization.NumberFormatInfo.InvariantInfo);
                                     if (modifiers.Length > 2) {
-                                        c = float.Parse(modifiers[2]);
+                                        c = float.Parse(modifiers[2], System.Globalization.NumberFormatInfo.InvariantInfo);
                                         if (modifiers.Length > 3) {
-                                            d = float.Parse(modifiers[3]);
+                                            d = float.Parse(modifiers[3], System.Globalization.NumberFormatInfo.InvariantInfo);
                                         }
                                     }
                                 }
