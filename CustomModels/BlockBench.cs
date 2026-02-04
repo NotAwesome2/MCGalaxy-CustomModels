@@ -390,6 +390,7 @@ namespace MCGalaxy {
                     };
 
                     var part = new Part {
+                        name = e.name,
                         min = min,
                         max = max,
                         u1 = u2,
