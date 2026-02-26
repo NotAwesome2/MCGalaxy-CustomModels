@@ -1,12 +1,29 @@
+using MCGalaxy.Events;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace MCGalaxy {
     public sealed partial class CustomModelsPlugin {
+
+        public delegate void ComputeModelAndPartsEvent(Player target, CustomModel model, List<Part> parts);
+
+        public sealed class ComputeModelAndParts : IEvent<ComputeModelAndPartsEvent>
+        {
+            internal static void Call(Player target, CustomModel model, List<Part> parts)
+            {
+                IEvent<ComputeModelAndPartsEvent>[] items = handlers.Items;
+                for (int i = 0; i < items.Length; i++)
+                {
+                    try { items[i].method(target, model, parts); }
+                    catch (Exception ex) { LogHandlerException(ex, items[i]); }
+                }
+            }
+        }
 
         // [player name] = { model name }
         static readonly ConcurrentDictionary<Player, HashSet<string>> SentCustomModels =

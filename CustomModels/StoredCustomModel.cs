@@ -12,7 +12,7 @@ namespace MCGalaxy {
         // don't store "name" because we will use filename for model name
         // don't store "parts" because we store those in the full .bbmodel file
         // don't store "u/vScale" because we take it from bbmodel's resolution.width
-        class StoredCustomModel {
+        public class StoredCustomModel {
             [JsonIgnore] public string modelName = null;
             [JsonIgnore] public HashSet<string> modifiers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             [JsonIgnore] public float scale = 1.0f;
@@ -276,10 +276,14 @@ namespace MCGalaxy {
                 public CustomModel model;
                 public CustomModelPart[] parts;
             }
-            public ModelAndParts ComputeModelAndParts() {
+            public ModelAndParts ComputeModelAndParts(Player dest=null) {
                 var blockBench = ParseBlockBench();
                 var model = this.ToCustomModel(blockBench);
                 var parts = new List<Part>(blockBench.ToParts());
+
+                // Call event so parts can be dynamically added/modified on the fly by plugins
+                // Good for clocks, signs, etc
+                CustomModelsPlugin.ComputeModelAndParts.Call(dest, model, parts);
 
                 if (this.autoNameY) {
                     float maxPartHeight = 0.0f;
@@ -481,14 +485,15 @@ namespace MCGalaxy {
             }
 
             public void Define(Player p) {
-                var modelAndParts = this.ComputeModelAndParts();
+                var modelAndParts = this.ComputeModelAndParts(p);
 
                 DefineModel(p, modelAndParts.model, modelAndParts.parts);
             }
         } // class StoredCustomModel
 
 
-        class Part : CustomModelPart {
+        public class Part : CustomModelPart {
+            public string name = string.Empty;
             public bool layer = false;
             public bool skinLeftArm = false;
             public bool skinRightArm = false;
