@@ -283,7 +283,7 @@ namespace MCGalaxy {
 
                 // Call event so parts can be dynamically added/modified on the fly by plugins
                 // Good for clocks, signs, etc
-                CustomModelsPlugin.ComputeModelAndParts.Call(dest, model, parts);
+                CustomModelsPlugin.OnSendingCustomModelEvent.Call(dest, model, parts);
 
                 if (this.autoNameY) {
                     float maxPartHeight = 0.0f;
