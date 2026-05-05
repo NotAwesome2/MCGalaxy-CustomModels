@@ -10,13 +10,13 @@ using System.Threading.Tasks;
 namespace MCGalaxy {
     public sealed partial class CustomModelsPlugin {
 
-        public delegate void SendingCustomModel(Player target, CustomModel model, List<Part> parts);
+        public delegate void ComputeModelAndPartsEvent(Player target, CustomModel model, List<Part> parts);
 
-        public sealed class OnSendingCustomModelEvent : IEvent<SendingCustomModel>
+        public sealed class ComputeModelAndParts : IEvent<ComputeModelAndPartsEvent>
         {
             internal static void Call(Player target, CustomModel model, List<Part> parts)
             {
-                IEvent<SendingCustomModel>[] items = handlers.Items;
+                IEvent<ComputeModelAndPartsEvent>[] items = handlers.Items;
                 for (int i = 0; i < items.Length; i++)
                 {
                     try { items[i].method(target, model, parts); }
