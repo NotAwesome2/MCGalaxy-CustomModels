@@ -168,6 +168,11 @@ namespace MCGalaxy {
             foreach (Command cmd in commands) { Command.Unregister(cmd); }
         }
 
+        public static void RedefineModel(StoredCustomModel model)
+        {
+            CheckUpdateAll(model);
+        }
+
     } // class CustomModelsPlugin
 
 } // namespace MCGalaxy
