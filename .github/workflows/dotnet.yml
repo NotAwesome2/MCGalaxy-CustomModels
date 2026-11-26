@@ -7,14 +7,14 @@ jobs:
     runs-on: windows-2022
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3.7.0
         with:
           submodules: recursive
 
       - name: Setup dotnet
-        uses: actions/setup-dotnet@v2
+        uses: actions/setup-dotnet@8e6bd2905eef86446227f003dda1deb3916c4aaf # v2.2.1
         with:
-          dotnet-version: 6.x.x
+          dotnet-version: 6.0.428
 
       - name: Install dependencies
         run: dotnet restore
