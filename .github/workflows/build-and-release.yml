@@ -1,0 +1,41 @@
+name: build-and-release
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read # for checkout
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+
+  release:
+    uses: SpiralP/github-reusable-workflows/.github/workflows/release.yml@87ea76b7f7671f45512175c53cd624e5ffdc8d71 # main
+    needs: build
+    if: "${{ success() && always() && ! startsWith(github.event.head_commit.message, 'chore(release): ') }}"
+    permissions:
+      contents: write # for creating release
+
+  upload-release-artifact:
+    runs-on: ubuntu-24.04
+    needs: release
+    if: ${{ success() && always() && needs.release.outputs.tag }}
+    permissions:
+      contents: write # for uploading release artifact
+
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: build-result
+          path: ./result
+
+      - name: Upload Release
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: result/lib/CustomModels.dll
+          tag_name: ${{ needs.release.outputs.tag }}
